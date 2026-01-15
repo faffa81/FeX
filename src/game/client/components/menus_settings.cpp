@@ -437,7 +437,7 @@ void CMenus::RenderSettingsTee(CUIRect MainView)
 		Checkboxes.VSplitLeft(MainView.w * 0.35f, &Checkboxes, &SkinPrefix);
 		MainView.HSplitTop(5.0f, nullptr, &MainView);
 		MainView.HSplitTop(EyeButtonSize, &Eyes, &MainView);
-		Eyes.VSplitRight(EyeButtonSize * NUM_EMOTES + 5.0f * (NUM_EMOTES - 1), nullptr, &Eyes);
+		Eyes.VSplitRight(EyeButtonSize * (float)NUM_EMOTES + 5.0f * (float)(NUM_EMOTES - 1), nullptr, &Eyes);
 	}
 	else
 	{
@@ -1800,7 +1800,7 @@ void CMenus::RenderSettingsAppearance(CUIRect MainView)
 	CUIRect TabBar, LeftView, RightView, Button;
 
 	MainView.HSplitTop(20.0f, &TabBar, &MainView);
-	const float TabWidth = TabBar.w / NUMBER_OF_APPEARANCE_TABS;
+	const float TabWidth = TabBar.w / (float)NUMBER_OF_APPEARANCE_TABS;
 	static CButtonContainer s_aPageTabs[NUMBER_OF_APPEARANCE_TABS] = {};
 	const char *apTabNames[NUMBER_OF_APPEARANCE_TABS] = {
 		Localize("HUD"),
@@ -2684,7 +2684,10 @@ void CMenus::RenderSettingsDDNet(CUIRect MainView)
 	if(DoButton_CheckBox(&g_Config.m_ClReplays, Localize("Enable replays"), g_Config.m_ClReplays, &Button))
 	{
 		g_Config.m_ClReplays ^= 1;
-		Client()->DemoRecorder_UpdateReplayRecorder();
+		if(Client()->State() == IClient::STATE_ONLINE)
+		{
+			Client()->DemoRecorder_UpdateReplayRecorder();
+		}
 	}
 
 	Left.HSplitTop(20.0f, &Button, &Left);
