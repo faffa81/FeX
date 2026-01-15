@@ -10,6 +10,11 @@ file(STRINGS src/game/version.h VERSION_LINE
   REGEX "^#define GAME_RELEASE_VERSION_INTERNAL "
 )
 
+file(STRINGS src/game/fexversion.h FEXVERSION_LINE
+  LIMIT_COUNT 1
+  REGEX "^#define FEX_RELEASE_VERSION_INTERNAL"
+)
+
 if(VERSION_LINE MATCHES "([0-9]+)\\.([0-9]+)\\.([0-9]+)")
   set(VERSION_MAJOR ${CMAKE_MATCH_1})
   set(VERSION_MINOR ${CMAKE_MATCH_2})
@@ -20,6 +25,18 @@ elseif(VERSION_LINE MATCHES "([0-9]+)\\.([0-9]+)")
   set(VERSION_PATCH "0")
 else()
   message(FATAL_ERROR "Couldn't parse version from src/game/version.h")
+endif()
+
+if(FEXVERSION_LINE MATCHES "([0-9]+)\\.([0-9]+)\\.([0-9]+)")
+  set(FEXVERSION_MAJOR ${CMAKE_MATCH_1})
+  set(FEXVERSION_MINOR ${CMAKE_MATCH_2})
+  set(FEXVERSION_PATCH ${CMAKE_MATCH_3})
+elseif(FEXVERSION_LINE MATCHES "([0-9]+)\\.([0-9]+)")
+  set(FEXVERSION_MAJOR ${CMAKE_MATCH_1})
+  set(FEXVERSION_MINOR ${CMAKE_MATCH_2})
+  set(FEXVERSION_PATCH "0")
+else()
+  message(FATAL_ERROR "Couldn't parse FeX version from src/game/fexversion.h")
 endif()
 
 if(VERSION_PATCH STREQUAL "0")
@@ -111,7 +128,7 @@ option(SERVER "Compile server" ON)
 option(TOOLS "Compile tools" ON)
 option(DOWNLOAD_GTEST "Download and compile GTest" ${AUTO_DEPENDENCIES_DEFAULT})
 option(STEAM "Build the Steam release version" OFF)
-option(DISCORD "Enable Discord rich presence support" OFF)
+option(DISCORD "Enable Discord rich presence support" ON)
 option(DISCORD_DYNAMIC "Enable discovering Discord rich presence libraries at runtime (Linux only)" OFF)
 option(PREFER_BUNDLED_LIBS "Prefer bundled libraries over system libraries" ${AUTO_DEPENDENCIES_DEFAULT})
 option(DEV "Don't generate stuff necessary for packaging" OFF)
@@ -169,7 +186,7 @@ if(NOT "${CMAKE_CURRENT_BINARY_DIR}" STREQUAL "${CMAKE_CURRENT_SOURCE_DIR}")
 endif()
 
 set(SERVER_EXECUTABLE DDNet-Server CACHE STRING "Name of the built server executable")
-set(CLIENT_EXECUTABLE DDNet CACHE STRING "Name of the build client executable")
+set(CLIENT_EXECUTABLE FeX CACHE STRING "Name of the build client executable")
 
 ########################################################################
 # Compiler flags
@@ -343,7 +360,6 @@ if(NOT MSVC AND NOT HAIKU)
   add_cxx_compiler_flag_if_supported(OUR_FLAGS_OWN -Wsuggest-override)
   add_cxx_compiler_flag_if_supported(OUR_FLAGS_OWN -Wdynamic-class-memaccess) # clang
   add_cxx_compiler_flag_if_supported(OUR_FLAGS_OWN -Wclass-memaccess) # gcc
-  add_cxx_compiler_flag_if_supported(OUR_FLAGS_OWN -Wno-deprecated-enum-float-conversion) # c++20 arithmetic between floating-point type and enumeration type
   add_linker_flag_if_supported(OUR_FLAGS_LINK -Wno-alloc-size-larger-than) # save.cpp with LTO
   # add_cxx_compiler_flag_if_supported(OUR_FLAGS_OWN -Wdouble-promotion) # Many occurrences
   # add_cxx_compiler_flag_if_supported(OUR_FLAGS_OWN -Wnull-dereference) # Many occurrences
@@ -2089,6 +2105,9 @@ set_src(ENGINE_SHARED GLOB_RECURSE src/engine/shared
   econ.cpp
   econ.h
   engine.cpp
+  fex/config_domains.h
+  fex/config_includes.h
+  fex/fex_variables.h
   fifo.cpp
   fifo.h
   filecollection.cpp
@@ -2168,6 +2187,7 @@ set_src(GAME_SHARED GLOB src/game
   alloc.h
   collision.cpp
   collision.h
+  fexversion.h
   gamecore.cpp
   gamecore.h
   layers.cpp
@@ -2360,6 +2380,7 @@ if(CLIENT)
     components/chat.h
     components/community_icons.cpp
     components/community_icons.h
+    components/componentdefines.h
     components/console.cpp
     components/console.h
     components/controls.cpp
@@ -2444,6 +2465,11 @@ if(CLIENT)
     components/touch_controls.h
     components/voting.cpp
     components/voting.h
+    #[fex<]
+    fex/client/fex.cpp
+    fex/client/fex.h
+    fex/defines.h
+    #[fex>]
     gameclient.cpp
     gameclient.h
     laser_data.cpp
@@ -2489,7 +2515,7 @@ if(CLIENT)
     ui_rect.h
     ui_scrollregion.cpp
     ui_scrollregion.h
-  )
+)
   set_src(GAME_EDITOR GLOB_RECURSE src/game/editor
     auto_map.cpp
     auto_map.h
@@ -3226,7 +3252,7 @@ function(regex_inverted VAR)
   set(${VAR} ${RESULT} PARENT_SCOPE)
 endfunction()
 
-set(CPACK_PACKAGE_NAME ${PROJECT_NAME})
+set(CPACK_PACKAGE_NAME FeX)
 set(CPACK_GENERATOR TGZ TXZ)
 set(CPACK_ARCHIVE_COMPONENT_INSTALL ON)
 if(TARGET_OS STREQUAL "mac")
@@ -3238,9 +3264,9 @@ else()
 endif()
 set(CPACK_COMPONENTS_ALL portable)
 set(CPACK_SOURCE_GENERATOR ZIP TGZ TBZ2 TXZ)
-set(CPACK_PACKAGE_VERSION_MAJOR ${PROJECT_VERSION_MAJOR})
-set(CPACK_PACKAGE_VERSION_MINOR ${PROJECT_VERSION_MINOR})
-set(CPACK_PACKAGE_VERSION_PATCH ${PROJECT_VERSION_PATCH})
+set(CPACK_PACKAGE_VERSION_MAJOR ${FEXVERSION_MAJOR})
+set(CPACK_PACKAGE_VERSION_MINOR ${FEXVERSION_MINOR})
+set(CPACK_PACKAGE_VERSION_PATCH ${FEXVERSION_PATCH})
 set(CPACK_PACKAGE_VERSION ${VERSION})
 set(CPACK_SYSTEM_NAME ${CMAKE_SYSTEM_NAME})
 
