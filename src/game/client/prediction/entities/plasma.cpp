@@ -95,18 +95,18 @@ bool CPlasma::HitCharacter(CCharacter *pTarget)
 	}
 
 	// Super player should not be able to stop the plasma bullets
-	if(pHitPlayer->Team() == TEAM_SUPER)
+	if(pHitPlayer->Team() == pHitPlayer->TeamsCore()->TeamSuper())
 	{
 		return false;
 	}
 
-	m_Freeze ? pHitPlayer->Freeze() : pHitPlayer->UnFreeze();
+	m_Freeze ? pHitPlayer->Freeze() : pHitPlayer->Unfreeze();
 	if(m_Explosive)
 	{
 		// Plasma Turrets are very precise weapons only one tee gets speed from it,
 		// other tees near the explosion remain unaffected
 		GameWorld()->CreateExplosion(
-			m_Pos, m_ForClientId, WEAPON_GRENADE, true, pTarget->Team(), CClientMask().set());
+			m_Pos, m_ForClientId, WEAPON_GRENADE, true, pTarget->Team(), CClientMask().set(), m_ForClientId);
 	}
 	Reset();
 	return true;
@@ -122,7 +122,7 @@ bool CPlasma::HitObstacle(CCharacter *pTarget)
 		{
 			// Even in the case of an explosion due to a collision with obstacles, only one player is affected
 			GameWorld()->CreateExplosion(
-				m_Pos, m_ForClientId, WEAPON_GRENADE, true, pTarget->Team(), CClientMask().set());
+				m_Pos, m_ForClientId, WEAPON_GRENADE, true, pTarget->Team(), CClientMask().set(), m_ForClientId);
 		}
 		Reset();
 		return true;

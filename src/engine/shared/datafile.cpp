@@ -5,10 +5,15 @@
 
 #include "uuid_manager.h"
 
+#include <base/bytes.h>
+#include <base/dbg.h>
+#include <base/fs.h>
 #include <base/hash_ctxt.h>
+#include <base/io.h>
 #include <base/log.h>
 #include <base/math.h>
-#include <base/system.h>
+#include <base/mem.h>
+#include <base/str.h>
 
 #include <engine/storage.h>
 
@@ -45,26 +50,18 @@ static inline int SwapEndianInt(int Number)
 class CItemEx
 {
 public:
-	int m_aUuid[sizeof(CUuid) / sizeof(int32_t)];
+	int m_aUuid[UUID_INT_SIZE];
 
 	static CItemEx FromUuid(CUuid Uuid)
 	{
 		CItemEx Result;
-		for(size_t i = 0; i < std::size(Result.m_aUuid); i++)
-		{
-			Result.m_aUuid[i] = bytes_be_to_uint(&Uuid.m_aData[i * sizeof(int32_t)]);
-		}
+		UuidToInts(Uuid, Result.m_aUuid);
 		return Result;
 	}
 
 	CUuid ToUuid() const
 	{
-		CUuid Result;
-		for(size_t i = 0; i < std::size(m_aUuid); i++)
-		{
-			uint_to_bytes_be(&Result.m_aData[i * sizeof(int32_t)], m_aUuid[i]);
-		}
-		return Result;
+		return UuidFromInts(m_aUuid);
 	}
 };
 
@@ -122,20 +119,31 @@ public:
 	int *m_pDataSizes;
 
 	char *m_pItemStart;
-	char *m_pDataStart;
+};
+
+class CDataProcessorWrapper
+{
+public:
+	FDataProcessor m_DataProcessor;
 };
 
 class CDatafile
 {
 public:
 	IOHANDLE m_File;
+	char m_aFullName[IO_MAX_PATH_LENGTH];
+	const char *m_pBaseName;
+	char m_aPath[IO_MAX_PATH_LENGTH];
 	unsigned m_FileSize;
 	SHA256_DIGEST m_Sha256;
 	unsigned m_Crc;
+
 	CDatafileInfo m_Info;
 	CDatafileHeader m_Header;
 	int m_DataStartOffset;
 	void **m_ppDataPtrs;
+	CDataProcessorWrapper **m_ppDataProcessors;
+	CDatafileItem **m_ppOverriddenItems;
 	int *m_pDataSizes;
 	char *m_pData;
 
@@ -223,7 +231,7 @@ public:
 				return nullptr;
 			}
 			unsigned ActualDataSize = 0;
-			if(io_seek(m_File, m_DataStartOffset + m_Info.m_pDataOffsets[Index], IOSEEK_START) == 0)
+			if(io_seek(m_File, m_DataStartOffset + m_Info.m_pDataOffsets[Index], EIoSeekOrigin::START) == 0)
 			{
 				ActualDataSize = io_read(m_File, pCompressedData, DataSize);
 			}
@@ -269,7 +277,7 @@ public:
 				return nullptr;
 			}
 			unsigned ActualDataSize = 0;
-			if(io_seek(m_File, m_DataStartOffset + m_Info.m_pDataOffsets[Index], IOSEEK_START) == 0)
+			if(io_seek(m_File, m_DataStartOffset + m_Info.m_pDataOffsets[Index], EIoSeekOrigin::START) == 0)
 			{
 				ActualDataSize = io_read(m_File, m_ppDataPtrs[Index], DataSize);
 			}
@@ -283,16 +291,45 @@ public:
 			}
 			m_pDataSizes[Index] = DataSize;
 		}
+
 		if(Swap)
 		{
 			SwapEndianInPlace(m_ppDataPtrs[Index], m_pDataSizes[Index]);
 		}
+
+		if(m_ppDataProcessors[Index] != nullptr)
+		{
+			const auto [pNewData, NewSize] = m_ppDataProcessors[Index]->m_DataProcessor(m_ppDataPtrs[Index], m_pDataSizes[Index]);
+			if(pNewData == nullptr)
+			{
+				m_ppDataPtrs[Index] = nullptr;
+				m_pDataSizes[Index] = -1;
+				return nullptr;
+			}
+			m_ppDataPtrs[Index] = pNewData;
+			m_pDataSizes[Index] = NewSize;
+		}
+
 		return m_ppDataPtrs[Index];
+	}
+
+	void AddDataProcessor(int Index, FDataProcessor DataProcessor) // NOLINT(readability-make-member-function-const)
+	{
+		dbg_assert(Index >= 0 && Index < m_Header.m_NumRawData, "Index invalid: %d", Index);
+		dbg_assert(m_ppDataProcessors[Index] == nullptr, "Data already intercepted: %d", Index);
+
+		m_ppDataProcessors[Index] = new CDataProcessorWrapper;
+		m_ppDataProcessors[Index]->m_DataProcessor = std::move(DataProcessor);
 	}
 
 	int GetFileItemSize(int Index) const
 	{
 		dbg_assert(Index >= 0 && Index < m_Header.m_NumItems, "Invalid Index: %d", Index);
+
+		if(m_ppOverriddenItems[Index] != nullptr)
+		{
+			return m_ppOverriddenItems[Index]->m_Size + sizeof(CDatafileItem);
+		}
 
 		if(Index == m_Header.m_NumItems - 1)
 		{
@@ -311,7 +348,33 @@ public:
 	{
 		dbg_assert(Index >= 0 && Index < m_Header.m_NumItems, "Invalid Index: %d", Index);
 
+		if(m_ppOverriddenItems[Index] != nullptr)
+		{
+			return m_ppOverriddenItems[Index];
+		}
 		return static_cast<CDatafileItem *>(static_cast<void *>(m_Info.m_pItemStart + m_Info.m_pItemOffsets[Index]));
+	}
+
+	bool OverrideItemData(int Index, const void *pData, size_t Size) // NOLINT(readability-make-member-function-const)
+	{
+		const CDatafileItem *pCurrentItem = GetItem(Index);
+		dbg_assert(m_ppOverriddenItems[Index] == nullptr, "Item already overridden: %d", Index);
+		dbg_assert(Size == 0 || pData != nullptr, "Data missing"); // Items without data are allowed
+		dbg_assert(Size <= (size_t)std::numeric_limits<int>::max(), "Data too large");
+		dbg_assert(Size % sizeof(int) == 0, "Invalid data boundary");
+		m_ppOverriddenItems[Index] = static_cast<CDatafileItem *>(malloc(sizeof(CDatafileItem) + Size));
+		if(m_ppOverriddenItems[Index] == nullptr)
+		{
+			log_error("datafile", "out of memory. could not allocate memory for overridden item data. index=%d size=%" PRIzu, Index, Size);
+			return false;
+		}
+		m_ppOverriddenItems[Index]->m_TypeAndId = pCurrentItem->m_TypeAndId;
+		m_ppOverriddenItems[Index]->m_Size = Size;
+		if(pData)
+		{
+			mem_copy(static_cast<void *>(m_ppOverriddenItems[Index] + 1), pData, Size);
+		}
+		return true;
 	}
 
 	bool Validate() const
@@ -442,16 +505,16 @@ CDataFileReader &CDataFileReader::operator=(CDataFileReader &&Other)
 	return *this;
 }
 
-bool CDataFileReader::Open(class IStorage *pStorage, const char *pFilename, int StorageType)
+bool CDataFileReader::Open(const char *pFullName, IStorage *pStorage, const char *pPath, int StorageType)
 {
 	dbg_assert(m_pDataFile == nullptr, "File already open");
 
-	log_trace("datafile", "loading '%s'", pFilename);
+	log_trace("datafile", "loading '%s' from '%s'", pFullName, pPath);
 
-	IOHANDLE File = pStorage->OpenFile(pFilename, IOFLAG_READ, StorageType);
+	IOHANDLE File = pStorage->OpenFile(pPath, IOFLAG_READ, StorageType);
 	if(!File)
 	{
-		log_error("datafile", "failed to open file '%s' for reading", pFilename);
+		log_error("datafile", "failed to open file '%s' for reading", pPath);
 		return false;
 	}
 
@@ -473,7 +536,7 @@ bool CDataFileReader::Open(class IStorage *pStorage, const char *pFilename, int 
 			sha256_update(&Sha256Ctxt, aBuffer, Bytes);
 		}
 		Sha256 = sha256_finish(&Sha256Ctxt);
-		if(io_seek(File, 0, IOSEEK_START) != 0)
+		if(io_seek(File, 0, EIoSeekOrigin::START) != 0)
 		{
 			io_close(File);
 			log_error("datafile", "could not seek to start after calculating hashes");
@@ -586,6 +649,8 @@ bool CDataFileReader::Open(class IStorage *pStorage, const char *pFilename, int 
 	int64_t AllocSize = Size;
 	AllocSize += sizeof(CDatafile); // add space for info structure
 	AllocSize += (int64_t)Header.m_NumRawData * sizeof(void *); // add space for data pointers
+	AllocSize += (int64_t)Header.m_NumRawData * sizeof(CDataProcessorWrapper *); // add space for data interceptors
+	AllocSize += (int64_t)Header.m_NumItems * sizeof(CDatafileItem *); // add space for item overrides
 	AllocSize += (int64_t)Header.m_NumRawData * sizeof(int); // add space for data sizes
 	if(AllocSize > MaxAllocSize)
 	{
@@ -604,15 +669,22 @@ bool CDataFileReader::Open(class IStorage *pStorage, const char *pFilename, int 
 	pTmpDataFile->m_Header = Header;
 	pTmpDataFile->m_DataStartOffset = sizeof(CDatafileHeader) + Size;
 	pTmpDataFile->m_ppDataPtrs = (void **)(pTmpDataFile + 1);
-	pTmpDataFile->m_pDataSizes = (int *)(pTmpDataFile->m_ppDataPtrs + Header.m_NumRawData);
+	pTmpDataFile->m_ppDataProcessors = (CDataProcessorWrapper **)(pTmpDataFile->m_ppDataPtrs + Header.m_NumRawData);
+	pTmpDataFile->m_ppOverriddenItems = (CDatafileItem **)(pTmpDataFile->m_ppDataProcessors + Header.m_NumRawData);
+	pTmpDataFile->m_pDataSizes = (int *)(pTmpDataFile->m_ppOverriddenItems + Header.m_NumItems);
 	pTmpDataFile->m_pData = (char *)(pTmpDataFile->m_pDataSizes + Header.m_NumRawData);
 	pTmpDataFile->m_File = File;
+	str_copy(pTmpDataFile->m_aFullName, pFullName);
+	pTmpDataFile->m_pBaseName = fs_filename(pTmpDataFile->m_aFullName);
+	str_copy(pTmpDataFile->m_aPath, pPath);
 	pTmpDataFile->m_FileSize = FileSize;
 	pTmpDataFile->m_Sha256 = Sha256;
 	pTmpDataFile->m_Crc = Crc;
 
 	// clear the data pointers and sizes
 	mem_zero(pTmpDataFile->m_ppDataPtrs, Header.m_NumRawData * sizeof(void *));
+	mem_zero(pTmpDataFile->m_ppDataProcessors, Header.m_NumRawData * sizeof(CDataProcessorWrapper *));
+	mem_zero(pTmpDataFile->m_ppOverriddenItems, Header.m_NumItems * sizeof(CDatafileItem *));
 	mem_zero(pTmpDataFile->m_pDataSizes, Header.m_NumRawData * sizeof(int));
 
 	// read types, offsets, sizes and item data
@@ -643,7 +715,6 @@ bool CDataFileReader::Open(class IStorage *pStorage, const char *pFilename, int 
 		pTmpDataFile->m_Info.m_pDataSizes = nullptr;
 		pTmpDataFile->m_Info.m_pItemStart = (char *)&pTmpDataFile->m_Info.m_pDataOffsets[pTmpDataFile->m_Header.m_NumRawData];
 	}
-	pTmpDataFile->m_Info.m_pDataStart = pTmpDataFile->m_Info.m_pItemStart + pTmpDataFile->m_Header.m_ItemSize;
 
 	if(!pTmpDataFile->Validate())
 	{
@@ -653,9 +724,16 @@ bool CDataFileReader::Open(class IStorage *pStorage, const char *pFilename, int 
 	}
 
 	m_pDataFile = pTmpDataFile;
-	log_trace("datafile", "loading done. datafile='%s'", pFilename);
+	log_trace("datafile", "loading done. name='%s' path='%s'", pFullName, pPath);
 
 	return true;
+}
+
+bool CDataFileReader::Open(IStorage *pStorage, const char *pPath, int StorageType)
+{
+	char aFilename[IO_MAX_PATH_LENGTH];
+	fs_split_file_extension(fs_filename(pPath), aFilename, sizeof(aFilename));
+	return Open(aFilename, pStorage, pPath, StorageType);
 }
 
 void CDataFileReader::Close()
@@ -668,6 +746,12 @@ void CDataFileReader::Close()
 	for(int i = 0; i < m_pDataFile->m_Header.m_NumRawData; i++)
 	{
 		free(m_pDataFile->m_ppDataPtrs[i]);
+		delete m_pDataFile->m_ppDataProcessors[i];
+	}
+
+	for(int i = 0; i < m_pDataFile->m_Header.m_NumItems; i++)
+	{
+		free(m_pDataFile->m_ppOverriddenItems[i]);
 	}
 
 	io_close(m_pDataFile->m_File);
@@ -731,14 +815,11 @@ const char *CDataFileReader::GetDataString(int Index)
 	return pData;
 }
 
-void CDataFileReader::ReplaceData(int Index, char *pData, size_t Size)
+void CDataFileReader::AddDataProcessor(int Index, FDataProcessor DataProcessor)
 {
 	dbg_assert(m_pDataFile != nullptr, "File not open");
-	dbg_assert(Index >= 0 && Index < m_pDataFile->m_Header.m_NumRawData, "Index invalid: %d", Index);
 
-	free(m_pDataFile->m_ppDataPtrs[Index]);
-	m_pDataFile->m_ppDataPtrs[Index] = pData;
-	m_pDataFile->m_pDataSizes[Index] = Size;
+	m_pDataFile->AddDataProcessor(Index, std::move(DataProcessor));
 }
 
 void CDataFileReader::UnloadData(int Index)
@@ -746,6 +827,10 @@ void CDataFileReader::UnloadData(int Index)
 	dbg_assert(m_pDataFile != nullptr, "File not open");
 
 	if(Index < 0 || Index >= m_pDataFile->m_Header.m_NumRawData)
+		return;
+
+	// Don't try to load the data again if it previously failed
+	if(m_pDataFile->m_pDataSizes[Index] < 0)
 		return;
 
 	free(m_pDataFile->m_ppDataPtrs[Index]);
@@ -887,11 +972,39 @@ void *CDataFileReader::FindItem(int Type, int Id)
 	return GetItem(Index);
 }
 
+bool CDataFileReader::OverrideItemData(int Index, const void *pData, size_t Size)
+{
+	dbg_assert(m_pDataFile != nullptr, "File not open");
+
+	return m_pDataFile->OverrideItemData(Index, pData, Size);
+}
+
 int CDataFileReader::NumItems() const
 {
 	dbg_assert(m_pDataFile != nullptr, "File not open");
 
 	return m_pDataFile->m_Header.m_NumItems;
+}
+
+const char *CDataFileReader::FullName() const
+{
+	dbg_assert(m_pDataFile != nullptr, "File not open");
+
+	return m_pDataFile->m_aFullName;
+}
+
+const char *CDataFileReader::BaseName() const
+{
+	dbg_assert(m_pDataFile != nullptr, "File not open");
+
+	return m_pDataFile->m_pBaseName;
+}
+
+const char *CDataFileReader::Path() const
+{
+	dbg_assert(m_pDataFile != nullptr, "File not open");
+
+	return m_pDataFile->m_aPath;
 }
 
 SHA256_DIGEST CDataFileReader::Sha256() const
@@ -908,7 +1021,7 @@ unsigned CDataFileReader::Crc() const
 	return m_pDataFile->m_Crc;
 }
 
-int CDataFileReader::MapSize() const
+int CDataFileReader::Size() const
 {
 	dbg_assert(m_pDataFile != nullptr, "File not open");
 

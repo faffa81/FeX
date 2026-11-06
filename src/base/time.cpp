@@ -4,7 +4,8 @@
 #include "time.h"
 
 #include "dbg.h"
-#include "system.h" // TODO: replace with str.h after moving str_format
+#include "detect.h"
+#include "str.h"
 
 #include <cmath>
 #include <iomanip> // std::get_time
@@ -43,12 +44,6 @@ int64_t time_get()
 	return last;
 }
 
-int64_t time_freq()
-{
-	using namespace std::chrono_literals;
-	return std::chrono::nanoseconds(1s).count();
-}
-
 int64_t time_timestamp()
 {
 	return time(nullptr);
@@ -62,10 +57,10 @@ static tm time_localtime_threadlocal(time_t *time_data)
 	tm *time = localtime(time_data);
 #else
 	// Thread-local buffer for the result of localtime_r
-	thread_local tm time_info_buf;
+	thread_local tm time_info_buf; // NOLINT(misc-use-internal-linkage) // TODO: remove NOLINT when updating clang-tidy version
 	tm *time = localtime_r(time_data, &time_info_buf);
 #endif
-	dbg_assert(time != nullptr, "Failed to get local time for time data %" PRId64, (int64_t)time_data);
+	dbg_assert(time != nullptr, "Failed to get local time for time data %" PRId64, (int64_t)*time_data);
 	return *time;
 }
 
@@ -99,8 +94,8 @@ static bool time_iseasterday(time_t time_data, tm time_info)
 	// (now-1d ≤ easter ≤ now+2d) <=> (easter-2d ≤ now ≤ easter+1d) <=> (Good Friday ≤ now ≤ Easter Monday)
 	for(int day_offset = -1; day_offset <= 2; day_offset++)
 	{
-		time_data = time_data + day_offset * 60 * 60 * 24;
-		const tm offset_time_info = time_localtime_threadlocal(&time_data);
+		time_t offset_time_data = time_data + day_offset * 60 * 60 * 24;
+		const tm offset_time_info = time_localtime_threadlocal(&offset_time_data);
 		if(offset_time_info.tm_mon == month - 1 && offset_time_info.tm_mday == day)
 			return true;
 	}
@@ -115,19 +110,19 @@ ETimeSeason time_season()
 
 	if((time_info.tm_mon == 11 && time_info.tm_mday == 31) || (time_info.tm_mon == 0 && time_info.tm_mday == 1))
 	{
-		return SEASON_NEWYEAR;
+		return ETimeSeason::NEWYEAR;
 	}
 	else if(time_info.tm_mon == 11 && time_info.tm_mday >= 24 && time_info.tm_mday <= 26)
 	{
-		return SEASON_XMAS;
+		return ETimeSeason::XMAS;
 	}
 	else if((time_info.tm_mon == 9 && time_info.tm_mday == 31) || (time_info.tm_mon == 10 && time_info.tm_mday == 1))
 	{
-		return SEASON_HALLOWEEN;
+		return ETimeSeason::HALLOWEEN;
 	}
 	else if(time_iseasterday(time_data, time_info))
 	{
-		return SEASON_EASTER;
+		return ETimeSeason::EASTER;
 	}
 
 	switch(time_info.tm_mon)
@@ -135,19 +130,19 @@ ETimeSeason time_season()
 	case 11:
 	case 0:
 	case 1:
-		return SEASON_WINTER;
+		return ETimeSeason::WINTER;
 	case 2:
 	case 3:
 	case 4:
-		return SEASON_SPRING;
+		return ETimeSeason::SPRING;
 	case 5:
 	case 6:
 	case 7:
-		return SEASON_SUMMER;
+		return ETimeSeason::SUMMER;
 	case 8:
 	case 9:
 	case 10:
-		return SEASON_AUTUMN;
+		return ETimeSeason::AUTUMN;
 	default:
 		dbg_assert_failed("Invalid month: %d", time_info.tm_mon);
 	}
@@ -159,7 +154,7 @@ ETimeSeason time_season()
 #endif
 void str_timestamp(char *buffer, int buffer_size)
 {
-	str_timestamp_format(buffer, buffer_size, FORMAT_NOSPACE);
+	str_timestamp_format(buffer, buffer_size, TimestampFormat::NOSPACE);
 }
 
 void str_timestamp_format(char *buffer, int buffer_size, const char *format)
@@ -179,6 +174,7 @@ void str_timestamp_ex(time_t time_data, char *buffer, int buffer_size, const cha
 bool timestamp_from_str(const char *string, const char *format, time_t *timestamp)
 {
 	std::tm tm{};
+	tm.tm_isdst = -1; // determine DST from parsed date
 	std::istringstream ss(string);
 	ss >> std::get_time(&tm, format);
 	if(ss.fail() || !ss.eof())
@@ -195,54 +191,61 @@ bool timestamp_from_str(const char *string, const char *format, time_t *timestam
 #pragma GCC diagnostic pop
 #endif
 
-int str_time(int64_t centisecs, int format, char *buffer, int buffer_size)
+int64_t time_milliseconds_from_seconds(float seconds)
 {
+	return static_cast<int64_t>(std::round(static_cast<double>(seconds) * 1000.0));
+}
+
+int64_t time_even_centiseconds_from_seconds(float seconds)
+{
+	return static_cast<int64_t>(std::round(static_cast<double>(seconds) * 50.0)) * 2;
+}
+
+int str_time(int64_t centisecs, ETimeFormat format, char *buffer, int buffer_size)
+{
+	dbg_assert(buffer_size > 0, "Invalid buffer size: %d", buffer_size);
+
 	const int sec = 100;
 	const int min = 60 * sec;
 	const int hour = 60 * min;
 	const int day = 24 * hour;
 
-	if(buffer_size <= 0)
-		return -1;
-
 	if(centisecs < 0)
 		centisecs = 0;
 
-	buffer[0] = 0;
-
 	switch(format)
 	{
-	case TIME_DAYS:
+	case ETimeFormat::DAYS:
 		if(centisecs >= day)
 			return str_format(buffer, buffer_size, "%" PRId64 "d %02" PRId64 ":%02" PRId64 ":%02" PRId64, centisecs / day,
 				(centisecs % day) / hour, (centisecs % hour) / min, (centisecs % min) / sec);
 		[[fallthrough]];
-	case TIME_HOURS:
+	case ETimeFormat::HOURS:
 		if(centisecs >= hour)
 			return str_format(buffer, buffer_size, "%02" PRId64 ":%02" PRId64 ":%02" PRId64, centisecs / hour,
 				(centisecs % hour) / min, (centisecs % min) / sec);
 		[[fallthrough]];
-	case TIME_MINS:
+	case ETimeFormat::MINS:
 		return str_format(buffer, buffer_size, "%02" PRId64 ":%02" PRId64, centisecs / min,
 			(centisecs % min) / sec);
-	case TIME_HOURS_CENTISECS:
+	case ETimeFormat::HOURS_CENTISECS:
 		if(centisecs >= hour)
 			return str_format(buffer, buffer_size, "%02" PRId64 ":%02" PRId64 ":%02" PRId64 ".%02" PRId64, centisecs / hour,
 				(centisecs % hour) / min, (centisecs % min) / sec, centisecs % sec);
 		[[fallthrough]];
-	case TIME_MINS_CENTISECS:
+	case ETimeFormat::MINS_CENTISECS:
 		if(centisecs >= min)
 			return str_format(buffer, buffer_size, "%02" PRId64 ":%02" PRId64 ".%02" PRId64, centisecs / min,
 				(centisecs % min) / sec, centisecs % sec);
 		[[fallthrough]];
-	case TIME_SECS_CENTISECS:
+	case ETimeFormat::SECS_CENTISECS:
 		return str_format(buffer, buffer_size, "%02" PRId64 ".%02" PRId64, (centisecs % min) / sec, centisecs % sec);
+	default:
+		dbg_assert_failed("Invalid time format: %d", (int)format);
 	}
-
-	return -1;
 }
 
-int str_time_float(float secs, int format, char *buffer, int buffer_size)
+int str_time_float(float secs, ETimeFormat format, char *buffer, int buffer_size)
 {
-	return str_time(static_cast<int64_t>(std::roundf(secs * 1000) / 10), format, buffer, buffer_size);
+	return str_time(time_even_centiseconds_from_seconds(secs), format, buffer, buffer_size);
 }

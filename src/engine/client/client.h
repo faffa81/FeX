@@ -17,10 +17,10 @@
 #include <engine/client/updater.h>
 #include <engine/editor.h>
 #include <engine/graphics.h>
+#include <engine/http.h>
 #include <engine/shared/config.h>
 #include <engine/shared/demo.h>
 #include <engine/shared/fifo.h>
-#include <engine/shared/http.h>
 #include <engine/shared/network.h>
 #include <engine/textrender.h>
 #include <engine/warning.h>
@@ -38,7 +38,6 @@ class IConfigManager;
 class IDiscord;
 class IEngine;
 class IEngineInput;
-class IEngineMap;
 class IEngineSound;
 class IFriends;
 class ILogger;
@@ -69,19 +68,19 @@ class CClient : public IClient, public CDemoPlayer::IListener
 	IFavorites *m_pFavorites = nullptr;
 	IGameClient *m_pGameClient = nullptr;
 	IEngineGraphics *m_pGraphics = nullptr;
+	IEngineHttp *m_pHttp = nullptr;
 	IEngineInput *m_pInput = nullptr;
-	IEngineMap *m_pMap = nullptr;
 	IEngineSound *m_pSound = nullptr;
 	ISteam *m_pSteam = nullptr;
 	INotifications *m_pNotifications = nullptr;
 	IStorage *m_pStorage = nullptr;
 	IEngineTextRender *m_pTextRender = nullptr;
 	IUpdater *m_pUpdater = nullptr;
-	CHttp m_Http;
 
 	CNetClient m_aNetClient[NUM_CONNS];
 	CDemoPlayer m_DemoPlayer;
-	CDemoRecorder m_aDemoRecorder[RECORDER_MAX];
+	CDemoRecorder m_aDemoRecorders[RECORDER_MAX];
+	CDemoRecorder m_aDemoRecordersSixup[RECORDER_MAX];
 	CDemoEditor m_DemoEditor;
 	CGhostRecorder m_GhostRecorder;
 	CGhostLoader m_GhostLoader;
@@ -132,9 +131,6 @@ class CClient : public IClient, public CDemoPlayer::IListener
 	// pinging
 	int64_t m_PingStartTime = 0;
 
-	char m_aCurrentMap[IO_MAX_PATH_LENGTH] = "";
-	char m_aCurrentMapPath[IO_MAX_PATH_LENGTH] = "";
-
 	char m_aTimeoutCodes[NUM_DUMMIES][32] = {"", ""};
 	bool m_aDidPostConnect[NUM_DUMMIES] = {false, false};
 	bool m_GenerateTimeoutSeed = true;
@@ -145,7 +141,7 @@ class CClient : public IClient, public CDemoPlayer::IListener
 
 	// map download
 	char m_aMapDownloadUrl[256] = "";
-	std::shared_ptr<CHttpRequest> m_pMapdownloadTask = nullptr;
+	std::shared_ptr<IHttpRequest> m_pMapdownloadTask = nullptr;
 	char m_aMapdownloadFilename[256] = "";
 	char m_aMapdownloadFilenameTemp[256] = "";
 	char m_aMapdownloadName[256] = "";
@@ -156,14 +152,19 @@ class CClient : public IClient, public CDemoPlayer::IListener
 	int m_MapdownloadTotalsize = -1;
 	std::optional<SHA256_DIGEST> m_MapdownloadSha256;
 
-	bool m_MapDetailsPresent = false;
-	char m_aMapDetailsName[256] = "";
-	int m_MapDetailsCrc = 0;
-	SHA256_DIGEST m_MapDetailsSha256;
-	char m_aMapDetailsUrl[256] = "";
+	class CMapDetails
+	{
+	public:
+		char m_aName[256];
+		int m_Size;
+		int m_Crc;
+		SHA256_DIGEST m_Sha256;
+		char m_aUrl[256];
+	};
+	std::optional<CMapDetails> m_MapDetails;
 
 	EInfoState m_InfoState = EInfoState::ERROR;
-	std::shared_ptr<CHttpRequest> m_pDDNetInfoTask = nullptr;
+	std::shared_ptr<IHttpRequest> m_pDDNetInfoTask = nullptr;
 
 	// time
 	CSmoothTime m_aGameTime[NUM_DUMMIES];
@@ -187,9 +188,12 @@ class CClient : public IClient, public CDemoPlayer::IListener
 	float m_LastDummyConnectTime = 0.0f;
 	bool m_DummyReconnectOnReload = false;
 	bool m_DummyDeactivateOnReconnect = false;
+#if defined(CONF_PLATFORM_IOS)
+	bool m_DummyReconnectOnResume = false;
+#endif
 
 	// graphs
-	CGraph m_InputtimeMarginGraph;
+	CGraph m_aInputtimeMarginGraphs[NUM_DUMMIES];
 	CGraph m_aGametimeMarginGraphs[NUM_DUMMIES];
 	CGraph m_FpsGraph;
 
@@ -202,9 +206,11 @@ class CClient : public IClient, public CDemoPlayer::IListener
 	int m_aSnapshotIncomingDataSize[NUM_DUMMIES] = {0, 0};
 
 	CSnapshotStorage::CHolder m_aDemorecSnapshotHolders[NUM_SNAPSHOT_TYPES];
-	char m_aaaDemorecSnapshotData[NUM_SNAPSHOT_TYPES][2][CSnapshot::MAX_SIZE];
+	CSnapshotBuffer m_aaDemorecSnapshotData[NUM_SNAPSHOT_TYPES][2];
 
 	CSnapshotDelta m_SnapshotDelta;
+	CSnapshotDelta m_SnapshotDeltaSixup;
+	CSnapshotDelta *SnapshotDelta();
 
 	std::deque<std::shared_ptr<CDemoEdit>> m_EditJobs;
 
@@ -278,6 +284,7 @@ public:
 	IDiscord *Discord() { return m_pDiscord; }
 	IEngine *Engine() { return m_pEngine; }
 	IGameClient *GameClient() { return m_pGameClient; }
+	const IGameClient *GameClient() const { return m_pGameClient; }
 	IEngineGraphics *Graphics() { return m_pGraphics; }
 	IEngineInput *Input() { return m_pInput; }
 	IEngineSound *Sound() { return m_pSound; }
@@ -286,7 +293,7 @@ public:
 	IStorage *Storage() { return m_pStorage; }
 	IEngineTextRender *TextRender() { return m_pTextRender; }
 	IUpdater *Updater() { return m_pUpdater; }
-	IHttp *Http() { return &m_Http; }
+	IHttp *Http() { return m_pHttp; }
 
 	CClient();
 
@@ -342,8 +349,9 @@ public:
 	bool DummyConnectingDelayed() const override;
 	bool DummyAllowed() const override;
 
-	void GetServerInfo(CServerInfo *pServerInfo) const override;
+	const CServerInfo &ServerInfo() const override;
 	void ServerInfoRequest();
+	void SetCurrentServerInfo(const CServerInfo &ServerInfo);
 
 	void LoadDebugFont();
 
@@ -364,6 +372,9 @@ public:
 	void Restart() override;
 	void Quit() override;
 	void ResetSocket();
+#if defined(CONF_PLATFORM_IOS)
+	void RecreateBrokenSockets();
+#endif
 
 	const char *PlayerName() const override;
 	const char *DummyName() override;
@@ -374,12 +385,12 @@ public:
 
 	int TranslateSysMsg(int *pMsgId, bool System, CUnpacker *pUnpacker, CPacker *pPacker, CNetChunk *pPacket, bool *pIsExMsg);
 
-	void PreprocessConnlessPacket7(CNetChunk *pPacket);
+	bool PreprocessConnlessPacket7(CNetChunk *pPacket);
 	void ProcessConnlessPacket(CNetChunk *pPacket);
 	void ProcessServerInfo(int Type, NETADDR *pFrom, const void *pData, int DataSize);
 	void ProcessServerPacket(CNetChunk *pPacket, int Conn, bool Dummy);
 
-	int UnpackAndValidateSnapshot(CSnapshot *pFrom, CSnapshot *pTo);
+	int UnpackAndValidateSnapshot(CSnapshot *pFrom, CSnapshotBuffer *pTo);
 
 	void ResetMapDownload(bool ResetActive);
 	void FinishMapDownload();
@@ -472,10 +483,12 @@ public:
 
 	const char *DemoPlayer_Play(const char *pFilename, int StorageType) override;
 	void DemoRecorder_Start(const char *pFilename, bool WithTimestamp, int Recorder) override;
+	void DemoRecorder_Stop(int Recorder);
 	void DemoRecorder_HandleAutoStart() override;
 	void DemoRecorder_UpdateReplayRecorder() override;
 	void DemoRecorder_AddDemoMarker(int Recorder);
 	IDemoRecorder *DemoRecorder(int Recorder) override;
+	CDemoRecorder (&DemoRecorders())[RECORDER_MAX];
 
 	void AutoScreenshot_Start() override;
 	void AutoStatScreenshot_Start() override;
@@ -507,11 +520,6 @@ public:
 	void GenerateTimeoutSeed() override;
 	void GenerateTimeoutCodes(const NETADDR *pAddrs, int NumAddrs);
 
-	const char *GetCurrentMap() const override;
-	const char *GetCurrentMapPath() const override;
-	SHA256_DIGEST GetCurrentMapSha256() const override;
-	unsigned GetCurrentMapCrc() const override;
-
 	void RaceRecord_Start(const char *pFilename) override;
 	void RaceRecord_Stop() override;
 	bool RaceRecord_IsRecording() override;
@@ -532,7 +540,7 @@ public:
 	std::vector<SWarning> &&QuittingWarnings() { return std::move(m_vQuittingWarnings); }
 
 	CChecksumData *ChecksumData() override { return &m_Checksum.m_Data; }
-	int UdpConnectivity(int NetType) override;
+	EConnectivity UdpConnectivity(int NetType) override;
 
 	bool ViewLink(const char *pLink) override;
 	bool ViewFile(const char *pFilename) override;

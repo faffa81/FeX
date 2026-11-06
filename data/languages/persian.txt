@@ -22,9 +22,6 @@ Abort
 Add
 == ﻥﺩﺮﻛ ﻪﻓﺎﺻﺍ
 
-Add Friend
-== ﺖﺳﻭﺩ ﻥﺩﺮﻛ ﻪﻓﺎﺻﺍ
-
 Address
 == ﺱﺭﺩﺁ
 
@@ -839,9 +836,6 @@ Angle:
 Personal best:
 == ﯽﺼﺨﺷ ﺩﺭﻮﮐﺭ ﻦﯾﺮﺘﻬﺑ
 
-Uploading map data to GPU
-== GPU ﺭﺩ ﭗﻣ ﺕﺎﻋﻼﻃﺍ ﯼﺭﺍﺬﮔﺭﺎﺑ
-
 The audio device couldn't be initialised.
 == .ﺩﻮﺷ ﯼﺯﺍﺪﻧﺍ ﻩﺍﺭ ﺪﻧﺍﻮﺗ ﯽﻤﻧ ﯽﺗﻮﺻ ﻩﺎﮕﺘﺳﺩ
 
@@ -982,9 +976,6 @@ Loading ghost files
 
 Menu opened. Press Esc key again to close menu.
 == .ﺩﻮﺷ ﻪﺘﺴﺑ ﻮﻨﻣ ﺎﺗ ﺪﯿﻫﺩ ﺭﺎﺸﻓ ﺍﺭ Esc ﺪﯿﻠﮐ ﻩﺭﺎﺑﻭﺩ ﺪﺷ ﺯﺎﺑ ﻮﻨﻣ
-
-Save power by lowering refresh rate (higher input latency)
-== (ﺮﺗﻻﺎﺑ ﯼﺩﻭﺭﻭ ﺮﯿﺧﺄﺗ) ﯽﻧﺎﺳﺭﺯﻭﺮﺑ ﺥﺮﻧ ﺶﻫﺎﮐ ﺎﺑ ﯼﮊﺮﻧﺍ ﻑﺮﺼﻣ ﺭﺩ ﯽﯾﻮﺟ ﻪﻓﺮﺻ
 
 Settings file
 == ﺕﺎﻤﯿﻈﻨﺗ ﻞﯾﺎﻓ
@@ -1264,20 +1255,8 @@ Show other players' hook collision lines
 Hook collision line opacity
 == ﺏﻼﻗ ﺩﺭﻮﺧﺮﺑ ﻂﺧ ﺖﯿﻓﺎﻔﺷ
 
-Colors of the hook collision line, in case of a possible collision with:
-== :ﺎﺑ ﯽﻟﺎﻤﺘﺣﺍ ﺩﺭﻮﺧﺮﺑ ﺕﺭﻮﺻ ﺭﺩ ،ﺏﻼﻗ ﺩﺭﻮﺧﺮﺑ ﻂﺧ ﯼﺎﻫ ﮓﻧﺭ
-
 Your movements are not taken into account when calculating the line colors
 == ﺩﻮﺷ ﯽﻤﻧ ﻪﺘﻓﺮﮔ ﺮﻈﻧ ﺭﺩ ﻁﻮﻄﺧ ﮓﻧﺭ ﻪﺒﺳﺎﺤﻣ ﻡﺎﮕﻨﻫ ﺭﺩ ﺎﻤﺷ ﺕﺎﮐﺮﺣ
-
-Nothing hookable
-== ﺮﯾﺬﭘﺎﻧ ﺏﻼﻗ
-
-Something hookable
-== ﺮﯾﺬﭘ ﺏﻼﻗ
-
-A Tee
-== ﯽﺗ
 
 Normal Color
 == ﯽﻟﻮﻤﻌﻣ ﮓﻧﺭ
@@ -1410,9 +1389,6 @@ https://wiki.ddnet.org/
 
 Tutorial
 == ﺵﺯﻮﻣﺁ
-
-Can't find a Tutorial server
-== ﺪﺸﻧ ﺍﺪﯿﭘ ﯽﺷﺯﻮﻣﺁ ﺭﻭﺮﺳ
 
 Server executable not found, can't run server
 == ﺩﺮﮐ ﺍﺮﺟﺍ ﻥﺍﻮﺗ ﯽﻤﻧ ﺍﺭ ﺭﻭﺮﺳ ،ﺪﺸﻧ ﺍﺪﯿﭘ ﺭﻭﺮﺳ ﯽﯾﺍﺮﺟﺍ ﻞﯾﺎﻓ
@@ -1651,9 +1627,6 @@ Click to remove this player from your friends list.
 
 Click to remove this clan from your friends list.
 == .ﺪﯿﻨﻛ ﻚﯿﻠﻛ ﺩﻮﺧ ﻥﺎﺘﺳﻭﺩ ﺖﺴﯿﻟ ﺯﺍ ﻦﻠﻛ ﻦﯾﺍ ﻑﺬﺣ ىﺍﺮﺑ
-
-Add Clan
-== ﻦﻠﻛ ﻥﺩﺮﻛ ﻪﻓﺎﺿﺍ
 
 Server filter
 == ﺭﻭﺮﺳ ﺮﺘﻠﯿﻓ
@@ -2031,6 +2004,12 @@ Active: Hook
 English translation by the DDNet Team
 == Persian translation by OneShadow, Quick, younesdevil, Player, ArAsH and Fàłłéñ
 
+Add clan
+== ﻦﻠﻛ ﻥﺩﺮﻛ ﻪﻓﺎﺿﺍ
+
+Add friend
+== ﺖﺳﻭﺩ ﻥﺩﺮﻛ ﻪﻓﺎﺻﺍ
+
 [Graphics error]
 Out of VRAM. Try setting 'cl_skins_loaded_max' to a lower value or remove custom assets (skins, entities, etc.), especially those with high resolution.
 == 
@@ -2054,6 +2033,9 @@ Team successfully saved by %s. The database connection failed, using generated s
 == 
 
 Save failed!
+== 
+
+Hold Shift to be more precise.
 == 
 
 Auto-sync player camera
@@ -2082,8 +2064,15 @@ Active
 Loading maps…
 == 
 
+Dummy is not connected
+== 
+
 [Spectating]
 Following %d: %s
+== 
+
+[Important alert message]
+Tap to dismiss…
 == 
 
 [Important alert message]
@@ -2102,10 +2091,46 @@ Server could not be started
 Loading map
 == 
 
+Initializing layers
+== 
+
+Joining Tutorial server
+== 
+
+There's an unsaved change in the touch controls editor, you might want to save it.
+== 
+
 This name cannot be used for files and folders
 == 
 
 You will be disconnected from the server.
+== 
+
+Could not get server list from master server
+== 
+
+There are no Tutorial servers available
+== 
+
+Retrying…
+== 
+
+Error joining Tutorial server
+== 
+
+Could not find a Tutorial server. Check your internet connection.
+== 
+
+You're playing on a local server because no online Tutorial server could be found.\n\nYour record will only be saved locally.
+== 
+
+Could not find online Tutorial server.\nStarting and connecting to local server…
+== 
+
+Waiting for local server to stop…
+== 
+
+Waiting for local server to start…
 == 
 
 Error checking player name
@@ -2114,7 +2139,16 @@ Error checking player name
 Could not check for existing player with your name. Check your internet connection.
 == 
 
-Could not get server list from master server
+Start and connect to local server
+== 
+
+Error loading communities
+== 
+
+Click to remove this community from your favorites.
+== 
+
+Click to add this community to your favorites.
 == 
 
 [Demo playback]
@@ -2128,10 +2162,22 @@ Go to Live
 Map size
 == 
 
+Refresh the demo list
+== 
+
+Open the selected folder
+== 
+
+Play the selected demo
+== 
+
 Are you sure that you want to disconnect and play this demo?
 == 
 
 Save all changes before turning off the editor?
+== 
+
+https://wiki.ddnet.org/wiki/Touch_controls
 == 
 
 Community
@@ -2182,22 +2228,7 @@ Are you sure that you want to delete this button?
 Duplicate
 == 
 
-New button already created
-== 
-
-A new button has already been created, please save or delete it before creating another one.
-== 
-
 Please save your changes before duplicating a button.
-== 
-
-No space for button
-== 
-
-There is not enough space available to place another button.
-== 
-
-There is not enough space available to place another button with this size. The button has been resized.
 == 
 
 Deselect
@@ -2250,6 +2281,9 @@ Bind Toggle
 Predefined
 == 
 
+Info
+== 
+
 Command
 == 
 
@@ -2277,7 +2311,10 @@ Excluded
 Ignore
 == 
 
-Long press on a touch button to select it.
+Button browser
+== 
+
+You can select buttons directly in the list below, or long press on a touch button on the screen to select it. You can also move and resize buttons by touch.
 == 
 
 New button
@@ -2301,19 +2338,32 @@ Active color
 Inactive color
 == 
 
+[Direct touch input]
+Relative aim
+== 
+
+Preview visibilities
+== 
+
 Preview button visibility while the editor is active.
 == 
 
 Show all buttons
 == 
 
-https://wiki.ddnet.org/wiki/Touch_controls
+You can manage your touch controls settings on this page. Only changes that are saved will be available after restarting the client. You can share your touch controls with others by exporting them to the clipboard.\n\nYou can find more detailed information about the touch controls on the DDNet Wiki.
+== 
+
+Open DDNet Wiki
 == 
 
 Save all changes before switching selected button?
 == 
 
 Discard
+== 
+
+No space for button
 == 
 
 There is not enough space available for the button. Check its visibilities and size.
@@ -2338,6 +2388,9 @@ The selected button is overlapping with other buttons.
 == 
 
 Wrong button settings
+== 
+
+There is not enough space available to place another button.
 == 
 
 [Touch button visibilities]
@@ -2405,6 +2458,10 @@ Joystick Aim
 == 
 
 [Predefined touch button behaviors]
+Joystick Relative Aim
+== 
+
+[Predefined touch button behaviors]
 Joystick Fire
 == 
 
@@ -2412,28 +2469,73 @@ Joystick Fire
 Joystick Hook
 == 
 
-Saves file
+Buttons with this behavior execute console commands like regular key binds.
 == 
 
-Open the saves file
+Buttons with this behavior cycle between executing one of two or more specified commands.
 == 
 
-This skin name cannot be used.
+Buttons with this behavior execute some predefined actions.
 == 
 
-Skin could not be loaded due to an error. Check the local console for details.
+Opens the ingame menu immediately when released.
 == 
 
-Skin could not be found.
+The extra menu button which toggles visibility of buttons with "Extra Menu" visibilities. Also opens the ingame menu on long press.
 == 
 
-No skins match your filter criteria
+Opens the emoticon selector (this does not work with binds).
 == 
 
-Show FPS
+Opens the spectator menu (this does not work with binds).
 == 
 
-Renders your frame rate in the top right
+Swaps the active action (fire and hook) for direct touch input and virtual joysticks.
+== 
+
+Uses the active action with the current aiming position.
+== 
+
+Virtual joystick which uses the active action.
+== 
+
+Virtual joystick which only aims without using an action.
+== 
+
+Virtual joystick which only aims and moves the mouse pointer relatively.
+== 
+
+Virtual joystick which always uses fire.
+== 
+
+Virtual joystick which always uses hook.
+== 
+
+Player is ingame, i.e. not spectating.
+== 
+
+Zoom is allowed on this server.
+== 
+
+A vote is currently active.
+== 
+
+Dummy is allowed on this server.
+== 
+
+Dummy is currently connected.
+== 
+
+Player is currently authed in rcon.
+== 
+
+Demo player is currently active.
+== 
+
+The extra menu with the given number is activated.
+== 
+
+Credits
 == 
 
 Show spectator cursor
@@ -2501,25 +2603,110 @@ Preview player's name plate
 Preview dummy's name plate
 == 
 
+Colors of the hook collision line:
+== 
+
+[Hook collision line color]
+When nothing is hookable
+== 
+
+[Hook collision line color]
+When something is hookable
+== 
+
+[Hook collision line color]
+When a Tee is hookable
+== 
+
+[Hook collision line color]
+Hook collision line tip
+== 
+
 Dragger Outline Color
 == 
 
 Dragger Inner Color
 == 
 
-Show background quads
+Teleport to cursor
 == 
 
-AntiPing: prediction margin
+Teleport dummy to cursor
 == 
 
 Scoreboard cursor
 == 
 
+Practice
+== 
+
+Show background quads
+== 
+
+Prediction margin
+== 
+
+Predict events (experimental)
+== 
+
+[AntiPing: predict other players]
+Off
+== 
+
+[AntiPing: predict other players]
+All
+== 
+
+[AntiPing: predict other players]
+Interact
+== 
+
+Always predict frozen players
+== 
+
+Update Rate
+== 
+
+Save power by lowering update rate (higher input latency)
+== 
+
+Saves file
+== 
+
+Open the saves file
+== 
+
+Show FPS
+== 
+
+Renders your frame rate in the top right
+== 
+
+No country flags match your filter criteria
+== 
+
+This skin name cannot be used.
+== 
+
+Skin could not be loaded due to an error. Check the local console for details.
+== 
+
+Skin could not be found.
+== 
+
+No skins match your filter criteria
+== 
+
+Join
+== 
+
 Download
 == 
 
-Add friend
+not bound
+== 
+
+Show cursor
 == 
 
 Unmute

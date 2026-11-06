@@ -22,9 +22,6 @@ Abort
 Add
 == Ajouter
 
-Add Friend
-== Ajouter aux amis
-
 Address
 == Adresse
 
@@ -1154,9 +1151,6 @@ Tries to predict other entities to give a feel of low latency
 Tutorial
 == Tutoriel
 
-Can't find a Tutorial server
-== Impossible de trouver un serveur tutoriel
-
 Super
 == Super
 
@@ -1288,9 +1282,6 @@ Show jumps indicator
 Hook collision line
 == Ligne de collision du grapin
 
-A Tee
-== Un Tee
-
 Loading assets
 == Chargement des assets
 
@@ -1315,9 +1306,6 @@ Initializing map logic
 Sending initial client info
 == Envoi des informations initiales du client
 
-Uploading map data to GPU
-== Transfert des données de la map vers le GPU
-
 Loading menu images
 == Chargement des images de menu
 
@@ -1336,17 +1324,8 @@ Hook Collisions
 Hook collision line opacity
 == Opacité de la ligne de collision du grappin
 
-Colors of the hook collision line, in case of a possible collision with:
-== Couleurs de la ligne de collision du grappin, dans le cas d'une collision possible avec :
-
 Your movements are not taken into account when calculating the line colors
 == Vos mouvements ne sont pas pris en compte lors du calcul des couleurs de la ligne
-
-Nothing hookable
-== Rien d'accrochable
-
-Something hookable
-== Quelque chose d'accrochable
 
 Loading race demo files
 == Chargement des fichiers de demo de course
@@ -1439,9 +1418,6 @@ Are you sure that you want to delete the demo '%s'?
 Unable to delete the demo '%s'
 == Impossible de supprimer la démo '%s'
 
-Save power by lowering refresh rate (higher input latency)
-== Économiser la puissance en diminuant le taux de rafraîchissement (augmente la latence d'entrée)
-
 Open the settings file
 == Ouvrir le fichier de configuration
 
@@ -1521,9 +1497,6 @@ Click to remove this player from your friends list.
 
 Click to remove this clan from your friends list.
 == Cliquez pour retirer ce clan de votre liste d'amis
-
-Add Clan
-== Ajouter un clan
 
 Create a random skin
 == Créer un skin aléatoire
@@ -2006,6 +1979,12 @@ https://wiki.ddnet.org/wiki/Mapping
 English translation by the DDNet Team
 == French translation by lordskelethom, Ubu, Choupom, clecle226, SunnyPistache, Pipou, Chairn, T tee, NRK, Nouaa, Sucre, archimede67, Sukya, Emilcha and Yubel
 
+Add clan
+== Ajouter un clan
+
+Add friend
+== Ajouter aux amis
+
 [Graphics error]
 Out of VRAM. Try setting 'cl_skins_loaded_max' to a lower value or remove custom assets (skins, entities, etc.), especially those with high resolution.
 == 
@@ -2034,6 +2013,9 @@ Team successfully saved by %s. The database connection failed, using generated s
 Save failed!
 == 
 
+Hold Shift to be more precise.
+== 
+
 Auto-sync player camera
 == 
 
@@ -2060,12 +2042,19 @@ Active
 Loading maps…
 == 
 
+Dummy is not connected
+== 
+
 [Spectating]
 Following %d: %s
 == 
 
 [Spectating Camera Mode Icon]
 AUTO
+== 
+
+[Important alert message]
+Tap to dismiss…
 == 
 
 [Important alert message]
@@ -2087,10 +2076,46 @@ Server could not be started
 Loading map
 == 
 
+Initializing layers
+== 
+
+Joining Tutorial server
+== 
+
+There's an unsaved change in the touch controls editor, you might want to save it.
+== 
+
 This name cannot be used for files and folders
 == 
 
 You will be disconnected from the server.
+== 
+
+Could not get server list from master server
+== 
+
+There are no Tutorial servers available
+== 
+
+Retrying…
+== 
+
+Error joining Tutorial server
+== 
+
+Could not find a Tutorial server. Check your internet connection.
+== 
+
+You're playing on a local server because no online Tutorial server could be found.\n\nYour record will only be saved locally.
+== 
+
+Could not find online Tutorial server.\nStarting and connecting to local server…
+== 
+
+Waiting for local server to stop…
+== 
+
+Waiting for local server to start…
 == 
 
 Error checking player name
@@ -2099,7 +2124,16 @@ Error checking player name
 Could not check for existing player with your name. Check your internet connection.
 == 
 
-Could not get server list from master server
+Start and connect to local server
+== 
+
+Error loading communities
+== 
+
+Click to remove this community from your favorites.
+== 
+
+Click to add this community to your favorites.
 == 
 
 [Demo playback]
@@ -2116,10 +2150,22 @@ Toggle auto camera
 Map size
 == 
 
+Refresh the demo list
+== 
+
+Open the selected folder
+== 
+
+Play the selected demo
+== 
+
 Are you sure that you want to disconnect and play this demo?
 == 
 
 Save all changes before turning off the editor?
+== 
+
+https://wiki.ddnet.org/wiki/Touch_controls
 == 
 
 Community
@@ -2170,22 +2216,7 @@ Are you sure that you want to delete this button?
 Duplicate
 == 
 
-New button already created
-== 
-
-A new button has already been created, please save or delete it before creating another one.
-== 
-
 Please save your changes before duplicating a button.
-== 
-
-No space for button
-== 
-
-There is not enough space available to place another button.
-== 
-
-There is not enough space available to place another button with this size. The button has been resized.
 == 
 
 Deselect
@@ -2238,6 +2269,9 @@ Bind Toggle
 Predefined
 == 
 
+Info
+== 
+
 Command
 == 
 
@@ -2265,7 +2299,10 @@ Excluded
 Ignore
 == 
 
-Long press on a touch button to select it.
+Button browser
+== 
+
+You can select buttons directly in the list below, or long press on a touch button on the screen to select it. You can also move and resize buttons by touch.
 == 
 
 New button
@@ -2289,19 +2326,32 @@ Active color
 Inactive color
 == 
 
+[Direct touch input]
+Relative aim
+== 
+
+Preview visibilities
+== 
+
 Preview button visibility while the editor is active.
 == 
 
 Show all buttons
 == 
 
-https://wiki.ddnet.org/wiki/Touch_controls
+You can manage your touch controls settings on this page. Only changes that are saved will be available after restarting the client. You can share your touch controls with others by exporting them to the clipboard.\n\nYou can find more detailed information about the touch controls on the DDNet Wiki.
+== 
+
+Open DDNet Wiki
 == 
 
 Save all changes before switching selected button?
 == 
 
 Discard
+== 
+
+No space for button
 == 
 
 There is not enough space available for the button. Check its visibilities and size.
@@ -2326,6 +2376,9 @@ The selected button is overlapping with other buttons.
 == 
 
 Wrong button settings
+== 
+
+There is not enough space available to place another button.
 == 
 
 [Touch button visibilities]
@@ -2393,6 +2446,10 @@ Joystick Aim
 == 
 
 [Predefined touch button behaviors]
+Joystick Relative Aim
+== 
+
+[Predefined touch button behaviors]
 Joystick Fire
 == 
 
@@ -2400,28 +2457,73 @@ Joystick Fire
 Joystick Hook
 == 
 
-Saves file
+Buttons with this behavior execute console commands like regular key binds.
 == 
 
-Open the saves file
+Buttons with this behavior cycle between executing one of two or more specified commands.
 == 
 
-This skin name cannot be used.
+Buttons with this behavior execute some predefined actions.
 == 
 
-Skin could not be loaded due to an error. Check the local console for details.
+Opens the ingame menu immediately when released.
 == 
 
-Skin could not be found.
+The extra menu button which toggles visibility of buttons with "Extra Menu" visibilities. Also opens the ingame menu on long press.
 == 
 
-No skins match your filter criteria
+Opens the emoticon selector (this does not work with binds).
 == 
 
-Show FPS
+Opens the spectator menu (this does not work with binds).
 == 
 
-Renders your frame rate in the top right
+Swaps the active action (fire and hook) for direct touch input and virtual joysticks.
+== 
+
+Uses the active action with the current aiming position.
+== 
+
+Virtual joystick which uses the active action.
+== 
+
+Virtual joystick which only aims without using an action.
+== 
+
+Virtual joystick which only aims and moves the mouse pointer relatively.
+== 
+
+Virtual joystick which always uses fire.
+== 
+
+Virtual joystick which always uses hook.
+== 
+
+Player is ingame, i.e. not spectating.
+== 
+
+Zoom is allowed on this server.
+== 
+
+A vote is currently active.
+== 
+
+Dummy is allowed on this server.
+== 
+
+Dummy is currently connected.
+== 
+
+Player is currently authed in rcon.
+== 
+
+Demo player is currently active.
+== 
+
+The extra menu with the given number is activated.
+== 
+
+Credits
 == 
 
 Show spectator cursor
@@ -2504,25 +2606,110 @@ Preview player's name plate
 Preview dummy's name plate
 == 
 
+Colors of the hook collision line:
+== 
+
+[Hook collision line color]
+When nothing is hookable
+== 
+
+[Hook collision line color]
+When something is hookable
+== 
+
+[Hook collision line color]
+When a Tee is hookable
+== 
+
+[Hook collision line color]
+Hook collision line tip
+== 
+
 Dragger Outline Color
 == 
 
 Dragger Inner Color
 == 
 
-Show background quads
+Teleport to cursor
 == 
 
-AntiPing: prediction margin
+Teleport dummy to cursor
 == 
 
 Scoreboard cursor
 == 
 
+Practice
+== 
+
+Show background quads
+== 
+
+Prediction margin
+== 
+
+Predict events (experimental)
+== 
+
+[AntiPing: predict other players]
+Off
+== 
+
+[AntiPing: predict other players]
+All
+== 
+
+[AntiPing: predict other players]
+Interact
+== 
+
+Always predict frozen players
+== 
+
+Update Rate
+== 
+
+Save power by lowering update rate (higher input latency)
+== 
+
+Saves file
+== 
+
+Open the saves file
+== 
+
+Show FPS
+== 
+
+Renders your frame rate in the top right
+== 
+
+No country flags match your filter criteria
+== 
+
+This skin name cannot be used.
+== 
+
+Skin could not be loaded due to an error. Check the local console for details.
+== 
+
+Skin could not be found.
+== 
+
+No skins match your filter criteria
+== 
+
+Join
+== 
+
 Download
 == 
 
-Add friend
+not bound
+== 
+
+Show cursor
 == 
 
 Unmute

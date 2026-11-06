@@ -3,6 +3,12 @@
 
 #include "chat.h"
 
+#include <base/color.h>
+#include <base/io.h>
+#include <base/log.h>
+#include <base/log_color.h>
+#include <base/time.h>
+
 #include <engine/editor.h>
 #include <engine/graphics.h>
 #include <engine/keys.h>
@@ -21,7 +27,7 @@
 #include <game/client/gameclient.h>
 #include <game/localization.h>
 
-char CChat::ms_aDisplayText[MAX_LINE_LENGTH] = "";
+char CChat::ms_aDisplayText[MAX_CHAT_LENGTH] = "";
 
 CChat::CLine::CLine()
 {
@@ -46,7 +52,6 @@ CChat::CChat()
 {
 	m_Mode = MODE_NONE;
 
-	m_Input.SetClipboardLineCallback([this](const char *pStr) { SendChatQueued(pStr); });
 	m_Input.SetCalculateOffsetCallback([this]() { return m_IsInputCensored; });
 	m_Input.SetDisplayTextCallback([this](char *pStr, size_t NumChars) {
 		m_IsInputCensored = false;
@@ -60,7 +65,7 @@ CChat::CChat()
 				str_startswith(pStr, "/load ")))
 		{
 			bool Censor = false;
-			const size_t NumLetters = minimum(NumChars, sizeof(ms_aDisplayText) - 1);
+			const size_t NumLetters = std::min(NumChars, sizeof(ms_aDisplayText) - 1);
 			for(size_t i = 0; i < NumLetters; ++i)
 			{
 				if(Censor)
@@ -144,9 +149,7 @@ void CChat::Reset()
 	m_aCurrentInputText[0] = '\0';
 	DisableMode();
 	m_vServerCommands.clear();
-
-	for(int64_t &LastSoundPlayed : m_aLastSoundPlayed)
-		LastSoundPlayed = 0;
+	std::fill(std::begin(m_aLastSoundPlayed), std::end(m_aLastSoundPlayed), 0);
 }
 
 void CChat::OnRelease()
@@ -178,7 +181,7 @@ void CChat::ConChat(IConsole::IResult *pResult, void *pUserData)
 	else if(str_comp(pMode, "team") == 0)
 		((CChat *)pUserData)->EnableMode(1);
 	else
-		((CChat *)pUserData)->Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "console", "expected all or team as mode");
+		log_error("chat", "expected all or team as mode");
 
 	if(pResult->GetString(1)[0] || g_Config.m_ClChatReset)
 		((CChat *)pUserData)->m_Input.Set(pResult->GetString(1));
@@ -192,6 +195,11 @@ void CChat::ConShowChat(IConsole::IResult *pResult, void *pUserData)
 void CChat::ConEcho(IConsole::IResult *pResult, void *pUserData)
 {
 	((CChat *)pUserData)->Echo(pResult->GetString(0));
+}
+
+void CChat::ConEchoConfig(IConsole::IResult *pResult, void *pUserData)
+{
+	((CChat *)pUserData)->EchoConfig(pResult->GetString(0));
 }
 
 void CChat::ConClearChat(IConsole::IResult *pResult, void *pUserData)
@@ -226,6 +234,21 @@ void CChat::Echo(const char *pString)
 	AddLine(CLIENT_MSG, 0, pString);
 }
 
+void CChat::EchoConfig(const char *pName)
+{
+	char aBuf[2048];
+	const SConfigVariable *pVariable = GameClient()->ConfigManager()->FindVariable(pName);
+	if(pVariable == nullptr)
+	{
+		str_format(aBuf, sizeof(aBuf), "Invalid config variable: %s", pName);
+	}
+	else
+	{
+		pVariable->SerializeHumanReadable(aBuf, sizeof(aBuf));
+	}
+	Echo(aBuf);
+}
+
 void CChat::OnConsoleInit()
 {
 	Console()->Register("say", "r[message]", CFGFLAG_CLIENT, ConSay, this, "Say in chat");
@@ -233,6 +256,7 @@ void CChat::OnConsoleInit()
 	Console()->Register("chat", "s['team'|'all'] ?r[message]", CFGFLAG_CLIENT, ConChat, this, "Enable chat with all/team mode");
 	Console()->Register("+show_chat", "", CFGFLAG_CLIENT, ConShowChat, this, "Show chat");
 	Console()->Register("echo", "r[message]", CFGFLAG_CLIENT | CFGFLAG_STORE, ConEcho, this, "Echo the text in chat window");
+	Console()->Register("echo_config", "r[config]", CFGFLAG_CLIENT | CFGFLAG_STORE, ConEchoConfig, this, "Echo the config value in chat window");
 	Console()->Register("clear_chat", "", CFGFLAG_CLIENT | CFGFLAG_STORE, ConClearChat, this, "Clear chat messages");
 }
 
@@ -257,6 +281,7 @@ bool CChat::OnInput(const IInput::CEvent &Event)
 		{
 			m_Input.Clear();
 			m_pHistoryEntry = nullptr;
+			m_EditingNewLine = true;
 		}
 	}
 	else if(Event.m_Flags & IInput::FLAG_PRESS && (Event.m_Key == KEY_RETURN || Event.m_Key == KEY_KP_ENTER))
@@ -269,6 +294,7 @@ bool CChat::OnInput(const IInput::CEvent &Event)
 
 		SendChatQueued(m_Input.GetString());
 		m_pHistoryEntry = nullptr;
+		m_EditingNewLine = true;
 		DisableMode();
 		GameClient()->OnRelease();
 		m_Input.Clear();
@@ -361,7 +387,7 @@ bool CChat::OnInput(const IInput::CEvent &Event)
 			// insert the command
 			if(pCompletionCommand)
 			{
-				char aBuf[MAX_LINE_LENGTH];
+				char aBuf[MAX_CHAT_LENGTH];
 				// add part before the name
 				str_truncate(aBuf, sizeof(aBuf), m_Input.GetString(), m_PlaceholderOffset);
 
@@ -420,7 +446,7 @@ bool CChat::OnInput(const IInput::CEvent &Event)
 			// insert the name
 			if(pCompletionString)
 			{
-				char aBuf[MAX_LINE_LENGTH];
+				char aBuf[MAX_CHAT_LENGTH];
 				// add part before the name
 				str_truncate(aBuf, sizeof(aBuf), m_Input.GetString(), m_PlaceholderOffset);
 
@@ -486,7 +512,9 @@ bool CChat::OnInput(const IInput::CEvent &Event)
 				m_pHistoryEntry = pTest;
 		}
 		else
+		{
 			m_pHistoryEntry = m_History.Last();
+		}
 
 		if(m_pHistoryEntry)
 			m_Input.Set(m_pHistoryEntry->m_aText);
@@ -522,7 +550,6 @@ void CChat::EnableMode(int Team)
 		else
 			m_Mode = MODE_ALL;
 
-		Input()->Clear();
 		m_CompletionChosen = -1;
 		m_CompletionUsed = false;
 		m_Input.Activate(EInputPriority::CHAT);
@@ -550,7 +577,7 @@ void CChat::OnMessage(int MsgType, void *pRawMsg)
 		/*
 		if(g_Config.m_ClCensorChat)
 		{
-			char aMessage[MAX_LINE_LENGTH];
+			char aMessage[MAX_CHAT_LENGTH];
 			str_copy(aMessage, pMsg->m_pMessage);
 			GameClient()->m_Censor.CensorMessage(aMessage);
 			AddLine(pMsg->m_ClientId, pMsg->m_Team, aMessage);
@@ -628,7 +655,7 @@ void CChat::StoreSave(const char *pText)
 	str_truncate(aSaveCode, sizeof(aSaveCode), pMid + 13, (pOn ? pOn : pEnd) - pMid - 13);
 
 	char aTimestamp[20];
-	str_timestamp_format(aTimestamp, sizeof(aTimestamp), FORMAT_SPACE);
+	str_timestamp_format(aTimestamp, sizeof(aTimestamp), TimestampFormat::SPACE);
 
 	const bool SavesFileExists = Storage()->FileExists(SAVES_FILE, IStorage::TYPE_SAVE);
 	IOHANDLE File = Storage()->OpenFile(SAVES_FILE, IOFLAG_APPEND, IStorage::TYPE_SAVE);
@@ -638,7 +665,7 @@ void CChat::StoreSave(const char *pText)
 	const char *apColumns[4] = {
 		aTimestamp,
 		aName,
-		Client()->GetCurrentMap(),
+		GameClient()->Map()->BaseName(),
 		aSaveCode,
 	};
 
@@ -676,9 +703,11 @@ void CChat::AddLine(int ClientId, int Team, const char *pLine)
 			pEnd = nullptr;
 		}
 		else if(pEnd == nullptr)
+		{
 			pEnd = pStrOld;
+		}
 
-		if(++Length >= MAX_LINE_LENGTH)
+		if(++Length >= MAX_CHAT_LENGTH)
 		{
 			*(const_cast<char *>(pStr)) = '\0';
 			break;
@@ -692,10 +721,7 @@ void CChat::AddLine(int ClientId, int Team, const char *pLine)
 
 	bool Highlighted = false;
 
-	auto &&FChatMsgCheckAndPrint = [this](const CLine &Line) {
-		char aBuf[1024];
-		str_format(aBuf, sizeof(aBuf), "%s%s%s", Line.m_aName, Line.m_ClientId >= 0 ? ": " : "", Line.m_aText);
-
+	auto &&FChatMsgCheckAndPrint = [](const CLine &Line) {
 		ColorRGBA ChatLogColor = ColorRGBA(1.0f, 1.0f, 1.0f, 1.0f);
 		if(Line.m_Highlighted)
 		{
@@ -727,7 +753,7 @@ void CChat::AddLine(int ClientId, int Team, const char *pLine)
 		else
 			pFrom = "chat/all";
 
-		Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, pFrom, aBuf, ChatLogColor);
+		log_info_color(color_cast<LOG_COLOR>(ChatLogColor), pFrom, "%s%s%s", Line.m_aName, Line.m_ClientId >= 0 ? ": " : "", Line.m_aText);
 	};
 
 	// Custom color for new line
@@ -938,7 +964,7 @@ void CChat::OnPrepareLines(float y)
 	}
 
 	int64_t Now = time();
-	float LineWidth = (IsScoreBoardOpen ? maximum(85.0f, (FontSize * 85.0f / 6.0f)) : g_Config.m_ClChatWidth) - (RealMsgPaddingX * 1.5f) - RealMsgPaddingTee;
+	float LineWidth = (IsScoreBoardOpen ? std::max(85.0f, FontSize * 85.0f / 6.0f) : g_Config.m_ClChatWidth) - (RealMsgPaddingX * 1.5f) - RealMsgPaddingTee;
 
 	float HeightLimit = IsScoreBoardOpen ? 180.0f : (m_PrevShowChat ? 50.0f : 200.0f);
 	float Begin = x;
@@ -1131,7 +1157,7 @@ void CChat::OnPrepareLines(float y)
 			}
 			else
 			{
-				FullWidth += maximum(LineCursor.m_LongestLineWidth, AppendCursor.m_LongestLineWidth);
+				FullWidth += std::max(LineCursor.m_LongestLineWidth, AppendCursor.m_LongestLineWidth);
 			}
 			Graphics()->SetColor(1, 1, 1, 1);
 			Line.m_QuadContainerIndex = Graphics()->CreateRectQuadContainer(Begin, y, FullWidth, Line.m_aYOffset[OffsetType], MessageRounding(), IGraphics::CORNER_ALL);
@@ -1167,7 +1193,7 @@ void CChat::OnRender()
 
 	const float Height = 300.0f;
 	const float Width = Height * Graphics()->ScreenAspect();
-	Graphics()->MapScreen(0.0f, 0.0f, Width, Height);
+	Graphics()->MapScreenToSize(Width, Height);
 
 	float x = 5.0f;
 	float y = 300.0f - 20.0f * FontSize() / 6.0f;
@@ -1302,11 +1328,7 @@ void CChat::OnRender()
 				float OffsetTeeY = TeeSize / 2.0f;
 				float FullHeightMinusTee = RowHeight - TeeSize;
 
-				const CAnimState *pIdleState = CAnimState::GetIdle();
-				vec2 OffsetToMid;
-				CRenderTools::GetRenderTeeOffsetToRenderedTee(pIdleState, &TeeRenderInfo, OffsetToMid);
-				vec2 TeeRenderPos(x + (RealMsgPaddingX + TeeSize) / 2.0f, y + OffsetTeeY + FullHeightMinusTee / 2.0f + OffsetToMid.y);
-				RenderTools()->RenderTee(pIdleState, &TeeRenderInfo, EMOTE_NORMAL, vec2(1, 0.1f), TeeRenderPos, Blend);
+				RenderTools()->RenderIdleTeeAtCenter(&TeeRenderInfo, vec2(x + (RealMsgPaddingX + TeeSize) / 2.0f, y + OffsetTeeY + FullHeightMinusTee / 2.0f), EMOTE_NORMAL, vec2(1, 0.1f), Blend);
 			}
 
 			const ColorRGBA TextColor = TextRender()->DefaultTextColor().WithMultipliedAlpha(Blend);

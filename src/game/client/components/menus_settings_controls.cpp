@@ -2,9 +2,9 @@
 /* If you are missing that file, acquire a complete release at teeworlds.com.                */
 #include "menus_settings_controls.h"
 
-#include <base/math.h>
-#include <base/system.h>
+#include <base/str.h>
 
+#include <engine/font_icons.h>
 #include <engine/graphics.h>
 #include <engine/shared/config.h>
 #include <engine/shared/localization.h>
@@ -18,11 +18,10 @@
 #include <game/client/ui_scrollregion.h>
 #include <game/localization.h>
 
+#include <algorithm>
 #include <functional>
 #include <string>
 #include <vector>
-
-using namespace FontIcons;
 
 inline constexpr float HEADER_FONT_SIZE = 16.0f;
 inline constexpr float FONT_SIZE = 13.0f;
@@ -41,8 +40,7 @@ bool CBindSlotUiElement::operator<(const CBindSlotUiElement &Other) const
 	{
 		return true;
 	}
-	return m_Bind.m_ModifierMask < Other.m_Bind.m_ModifierMask ||
-	       m_Bind.m_Key < Other.m_Bind.m_Key;
+	return (m_Bind.m_ModifierMask != Other.m_Bind.m_ModifierMask) ? (m_Bind.m_ModifierMask < Other.m_Bind.m_ModifierMask) : (m_Bind.m_Key < Other.m_Bind.m_Key);
 }
 
 std::vector<CBindSlotUiElement>::iterator CBindOption::GetBindSlotElement(const CBindSlot &BindSlot)
@@ -95,6 +93,8 @@ void CMenusSettingsControls::OnInterfacesInit(CGameClient *pClient)
 		{EBindOptionGroup::DUMMY, Localizable("Toggle dummy"), "toggle cl_dummy 0 1"},
 		{EBindOptionGroup::DUMMY, Localizable("Dummy copy"), "toggle cl_dummy_copy_moves 0 1"},
 		{EBindOptionGroup::DUMMY, Localizable("Hammerfly dummy"), "toggle cl_dummy_hammer 0 1"},
+		{EBindOptionGroup::PRACTICE, Localizable("Teleport to cursor"), "tp_to_cursor"},
+		{EBindOptionGroup::PRACTICE, Localizable("Teleport dummy to cursor"), "tp_dummy_to_cursor"},
 		{EBindOptionGroup::MISCELLANEOUS, Localizable("Emoticon"), "+emote"},
 		{EBindOptionGroup::MISCELLANEOUS, Localizable("Spectator mode"), "+spectate"},
 		{EBindOptionGroup::MISCELLANEOUS, Localizable("Spectate next"), "spectate_next"},
@@ -172,12 +172,10 @@ void CMenusSettingsControls::Render(CUIRect MainView)
 			Localize("Reset"), Localize("Cancel"), &CMenus::ResetSettingsControls);
 	}
 
-	vec2 ScrollOffset(0.0f, 0.0f);
 	CScrollRegionParams ScrollParams;
 	ScrollParams.m_ScrollUnit = 6.0f * BUTTON_HEIGHT;
-	ScrollParams.m_Flags = CScrollRegionParams::FLAG_CONTENT_STATIC_WIDTH;
-	m_SettingsScrollRegion.Begin(&MainView, &ScrollOffset, &ScrollParams);
-	MainView.y += ScrollOffset.y;
+	ScrollParams.m_ForceShowScrollbar = true;
+	m_SettingsScrollRegion.Begin(&MainView, &ScrollParams);
 
 	CUIRect LeftColumn, RightColumn;
 	MainView.VSplitMid(&LeftColumn, &RightColumn, MARGIN);
@@ -194,6 +192,7 @@ void CMenusSettingsControls::Render(CUIRect MainView)
 	RenderSettingsBindsBlock(EBindOptionGroup::VOTING, &RightColumn, Localize("Voting"));
 	RenderSettingsBindsBlock(EBindOptionGroup::CHAT, &RightColumn, Localize("Chat"));
 	RenderSettingsBindsBlock(EBindOptionGroup::DUMMY, &RightColumn, Localize("Dummy"));
+	RenderSettingsBindsBlock(EBindOptionGroup::PRACTICE, &RightColumn, Localize("Practice"));
 	RenderSettingsBindsBlock(EBindOptionGroup::MISCELLANEOUS, &RightColumn, Localize("Miscellaneous"));
 	if(std::any_of(m_vBindOptions.begin(), m_vBindOptions.end(), [](const CBindOption &Option) { return Option.m_Group == EBindOptionGroup::CUSTOM; }))
 	{
@@ -416,7 +415,7 @@ void CMenusSettingsControls::RenderSettingsBlock(float Height, CUIRect *pParentR
 					Props.m_EnableWidthCheck = false;
 					TextRender()->SetFontPreset(EFontPreset::ICON_FONT);
 					TextRender()->SetRenderFlags(ETextRenderFlags::TEXT_RENDER_FLAG_ONLY_ADVANCE_WIDTH | ETextRenderFlags::TEXT_RENDER_FLAG_NO_X_BEARING | ETextRenderFlags::TEXT_RENDER_FLAG_NO_Y_BEARING | ETextRenderFlags::TEXT_RENDER_FLAG_NO_OVERSIZE);
-					Ui()->DoLabel(&ExpandButton, *pExpanded ? FONT_ICON_CHEVRON_UP : FONT_ICON_CHEVRON_DOWN, HEADER_FONT_SIZE, TEXTALIGN_MR, Props);
+					Ui()->DoLabel(&ExpandButton, *pExpanded ? FontIcon::CHEVRON_UP : FontIcon::CHEVRON_DOWN, HEADER_FONT_SIZE, TEXTALIGN_MR, Props);
 					TextRender()->SetRenderFlags(0);
 					TextRender()->SetFontPreset(EFontPreset::DEFAULT_FONT);
 				}
@@ -506,12 +505,14 @@ void CMenusSettingsControls::RenderSettingsBinds(EBindOptionGroup Group, CUIRect
 		{
 			LabelProps.SetColor(ColorRGBA(0.4f, 0.4f, 0.9f, 1.0f));
 		}
+		LabelProps.m_pTooltipId = BindOption.m_Group == EBindOptionGroup::CUSTOM ? &BindOption.m_TooltipButtonId : nullptr;
 		const CLabelResult LabelResult = Ui()->DoLabel(&Label, BindOption.m_Group == EBindOptionGroup::CUSTOM ? BindOption.m_Command.c_str() : Localize(BindOption.m_pLabel),
 			FONT_SIZE, TEXTALIGN_ML, LabelProps);
 		if(BindOption.m_Group != EBindOptionGroup::CUSTOM || LabelResult.m_Truncated)
 		{
 			Ui()->DoButtonLogic(&BindOption.m_TooltipButtonId, 0, &Label, BUTTONFLAG_NONE);
-			GameClient()->m_Tooltips.DoToolTip(&BindOption.m_TooltipButtonId, &Label, BindOption.m_Command.c_str());
+			if(BindOption.m_Group != EBindOptionGroup::CUSTOM)
+				Ui()->DoToolTip(&BindOption.m_TooltipButtonId, &Label, BindOption.m_Command.c_str(), -1.0f);
 		}
 
 		for(CBindSlotUiElement &CurrentBind : BindOption.m_vCurrentBinds)
@@ -553,7 +554,7 @@ void CMenusSettingsControls::RenderSettingsBinds(EBindOptionGroup Group, CUIRect
 			}
 		}
 
-		if(Ui()->DoButton_FontIcon(&BindOption.m_AddBindButtonContainer, FONT_ICON_PLUS, BindOption.m_AddNewBind ? 1 : 0, &AddButton, BUTTONFLAG_LEFT))
+		if(Ui()->DoButton_FontIcon(&BindOption.m_AddBindButtonContainer, FontIcon::PLUS, BindOption.m_AddNewBind ? 1 : 0, &AddButton, BUTTONFLAG_LEFT))
 		{
 			BindOption.m_AddNewBind = true;
 			BindOption.m_AddNewBindActivate = true;
@@ -710,7 +711,7 @@ void CMenusSettingsControls::RenderJoystickAxisPicker(CUIRect View)
 	Ui()->DoLabel(&AimBind, Localize("Aim bind"), FONT_SIZE, TEXTALIGN_MC);
 
 	IInput::IJoystick *pJoystick = Input()->GetActiveJoystick();
-	for(int i = 0; i < std::min<int>(pJoystick->GetNumAxes(), NUM_JOYSTICK_AXES); i++)
+	for(int i = 0; i < std::min(pJoystick->GetNumAxes(), (int)NUM_JOYSTICK_AXES); i++)
 	{
 		View.HSplitTop(BUTTON_SPACING, nullptr, &View);
 		View.HSplitTop(BUTTON_HEIGHT, &Row, &View);

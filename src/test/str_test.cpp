@@ -1,4 +1,5 @@
-#include <base/system.h>
+#include <base/mem.h>
+#include <base/str.h>
 #include <base/windows.h>
 
 #include <engine/server/server.h>
@@ -8,6 +9,7 @@
 #include <gtest/gtest.h>
 
 #include <limits>
+#include <vector>
 
 typedef void (*TStringArgumentFunction)(char *pStr);
 template<TStringArgumentFunction Func>
@@ -75,30 +77,63 @@ TEST(Str, StrDelim)
 
 TEST(Str, StrIsNum)
 {
-	EXPECT_EQ(str_isnum('/'), false);
-	EXPECT_EQ(str_isnum('0'), true);
-	EXPECT_EQ(str_isnum('1'), true);
-	EXPECT_EQ(str_isnum('2'), true);
-	EXPECT_EQ(str_isnum('8'), true);
-	EXPECT_EQ(str_isnum('9'), true);
-	EXPECT_EQ(str_isnum(':'), false);
-	EXPECT_EQ(str_isnum(' '), false);
+	EXPECT_FALSE(str_isnum('/'));
+	for(char c = '0'; c <= '9'; c++)
+	{
+		EXPECT_TRUE(str_isnum(c));
+	}
+	for(char c = 'a'; c <= 'z'; c++)
+	{
+		EXPECT_FALSE(str_isnum(c));
+	}
+	EXPECT_FALSE(str_isnum(':'));
+	EXPECT_FALSE(str_isnum(' '));
 }
 
 TEST(Str, StrIsAllNum)
 {
-	EXPECT_EQ(str_isallnum("/"), 0);
-	EXPECT_EQ(str_isallnum("0"), 1);
-	EXPECT_EQ(str_isallnum("1"), 1);
-	EXPECT_EQ(str_isallnum("2"), 1);
-	EXPECT_EQ(str_isallnum("8"), 1);
-	EXPECT_EQ(str_isallnum("9"), 1);
-	EXPECT_EQ(str_isallnum(":"), 0);
-	EXPECT_EQ(str_isallnum(" "), 0);
+	EXPECT_FALSE(str_isallnum("/"));
+	EXPECT_TRUE(str_isallnum("0"));
+	EXPECT_TRUE(str_isallnum("1"));
+	EXPECT_TRUE(str_isallnum("2"));
+	EXPECT_TRUE(str_isallnum("8"));
+	EXPECT_TRUE(str_isallnum("9"));
+	EXPECT_FALSE(str_isallnum(":"));
+	EXPECT_FALSE(str_isallnum(" "));
 
-	EXPECT_EQ(str_isallnum("123"), 1);
-	EXPECT_EQ(str_isallnum("123/"), 0);
-	EXPECT_EQ(str_isallnum("123:"), 0);
+	EXPECT_TRUE(str_isallnum("123"));
+	EXPECT_FALSE(str_isallnum("123/"));
+	EXPECT_FALSE(str_isallnum("123:"));
+
+	EXPECT_TRUE(str_isallnum("0123456789"));
+	EXPECT_FALSE(str_isallnum("abcdef"));
+	EXPECT_FALSE(str_isallnum("ABCDEF"));
+	EXPECT_FALSE(str_isallnum("0123456789AbCdEf"));
+	EXPECT_FALSE(str_isallnum("z"));
+	EXPECT_FALSE(str_isallnum("Z"));
+}
+
+TEST(Str, StrIsAllNumHex)
+{
+	EXPECT_FALSE(str_isallnum_hex("/"));
+	EXPECT_TRUE(str_isallnum_hex("0"));
+	EXPECT_TRUE(str_isallnum_hex("1"));
+	EXPECT_TRUE(str_isallnum_hex("2"));
+	EXPECT_TRUE(str_isallnum_hex("8"));
+	EXPECT_TRUE(str_isallnum_hex("9"));
+	EXPECT_FALSE(str_isallnum_hex(":"));
+	EXPECT_FALSE(str_isallnum_hex(" "));
+
+	EXPECT_TRUE(str_isallnum_hex("123"));
+	EXPECT_FALSE(str_isallnum_hex("123/"));
+	EXPECT_FALSE(str_isallnum_hex("123:"));
+
+	EXPECT_TRUE(str_isallnum_hex("0123456789"));
+	EXPECT_TRUE(str_isallnum_hex("abcdef"));
+	EXPECT_TRUE(str_isallnum_hex("ABCDEF"));
+	EXPECT_TRUE(str_isallnum_hex("0123456789AbCdEf"));
+	EXPECT_FALSE(str_isallnum_hex("z"));
+	EXPECT_FALSE(str_isallnum_hex("Z"));
 }
 
 TEST(Str, Dist)
@@ -257,8 +292,8 @@ TEST(Str, Utf8CompNocase)
 {
 	EXPECT_TRUE(str_utf8_comp_nocase("ÖlÜ", "ölü") == 0);
 	EXPECT_TRUE(str_utf8_comp_nocase("ÜlÖ", "ölü") > 0); // ü > ö
-	EXPECT_TRUE(str_utf8_comp_nocase("ÖlÜ", "ölüa") < 0); // NULL < a
-	EXPECT_TRUE(str_utf8_comp_nocase("ölüa", "ÖlÜ") > 0); // a < NULL
+	EXPECT_TRUE(str_utf8_comp_nocase("ÖlÜ", "ölüa") < 0); // \0 < a
+	EXPECT_TRUE(str_utf8_comp_nocase("ölüa", "ÖlÜ") > 0); // a < \0
 
 #if (CHAR_MIN < 0)
 	const char a[2] = {CHAR_MIN, 0};
@@ -547,7 +582,7 @@ TEST(Str, HexDecode)
 	EXPECT_STREQ(aOut, "ABCD");
 }
 
-void StrBase64Str(char *pBuffer, int BufferSize, const char *pString)
+static void StrBase64Str(char *pBuffer, int BufferSize, const char *pString)
 {
 	str_base64(pBuffer, BufferSize, pString, str_length(pString));
 }
@@ -588,30 +623,30 @@ TEST(Str, Base64)
 TEST(Str, Base64Decode)
 {
 	char aOut[17];
-	str_copy(aOut, "XXXXXXXXXXXXXXXX", sizeof(aOut));
+	str_copy(aOut, "XXXXXXXXXXXXXXXX");
 	EXPECT_EQ(str_base64_decode(aOut, sizeof(aOut), ""), 0);
 	EXPECT_STREQ(aOut, "XXXXXXXXXXXXXXXX");
 
 	// https://en.wikipedia.org/w/index.php?title=Base64&oldid=1033503483#Output_padding
-	str_copy(aOut, "XXXXXXXXXXXXXXXX", sizeof(aOut));
+	str_copy(aOut, "XXXXXXXXXXXXXXXX");
 	EXPECT_EQ(str_base64_decode(aOut, sizeof(aOut), "cGxlYXN1cmUu"), 9);
 	EXPECT_STREQ(aOut, "pleasure.XXXXXXX");
-	str_copy(aOut, "XXXXXXXXXXXXXXXX", sizeof(aOut));
+	str_copy(aOut, "XXXXXXXXXXXXXXXX");
 	EXPECT_EQ(str_base64_decode(aOut, sizeof(aOut), "bGVhc3VyZS4="), 8);
 	EXPECT_STREQ(aOut, "leasure.XXXXXXXX");
-	str_copy(aOut, "XXXXXXXXXXXXXXXX", sizeof(aOut));
+	str_copy(aOut, "XXXXXXXXXXXXXXXX");
 	EXPECT_EQ(str_base64_decode(aOut, sizeof(aOut), "ZWFzdXJlLg=="), 7);
 	EXPECT_STREQ(aOut, "easure.XXXXXXXXX");
-	str_copy(aOut, "XXXXXXXXXXXXXXXX", sizeof(aOut));
+	str_copy(aOut, "XXXXXXXXXXXXXXXX");
 	EXPECT_EQ(str_base64_decode(aOut, sizeof(aOut), "YXN1cmUu"), 6);
 	EXPECT_STREQ(aOut, "asure.XXXXXXXXXX");
-	str_copy(aOut, "XXXXXXXXXXXXXXXX", sizeof(aOut));
+	str_copy(aOut, "XXXXXXXXXXXXXXXX");
 	EXPECT_EQ(str_base64_decode(aOut, sizeof(aOut), "c3VyZS4="), 5);
 	EXPECT_STREQ(aOut, "sure.XXXXXXXXXXX");
-	str_copy(aOut, "XXXXXXXXXXXXXXXX", sizeof(aOut));
+	str_copy(aOut, "XXXXXXXXXXXXXXXX");
 	EXPECT_EQ(str_base64_decode(aOut, sizeof(aOut), "////"), 3);
 	EXPECT_STREQ(aOut, "\xff\xff\xffXXXXXXXXXXXXX");
-	str_copy(aOut, "XXXXXXXXXXXXXXXX", sizeof(aOut));
+	str_copy(aOut, "XXXXXXXXXXXXXXXX");
 	EXPECT_EQ(str_base64_decode(aOut, sizeof(aOut), "CQk+"), 3);
 	EXPECT_STREQ(aOut, "		>XXXXXXXXXXXXX");
 }
@@ -640,6 +675,26 @@ TEST(Str, Base64DecodeError)
 	EXPECT_LT(str_base64_decode(aBuf, 2, "cGxlYXN1cmUu"), 0);
 	EXPECT_LT(str_base64_decode(aBuf, 3, "cGxlYXN1cmUu"), 0);
 	EXPECT_LT(str_base64_decode(aBuf, 4, "cGxlYXN1cmUu"), 0);
+}
+
+static void TestUnescapeNewlines(const char *pInput, const char *pExpectedOutput)
+{
+	char aOutput[256];
+	str_copy(aOutput, pInput);
+	str_unescape_newlines(aOutput);
+	EXPECT_STREQ(aOutput, pExpectedOutput);
+}
+
+TEST(Str, UnescapeNewlines)
+{
+	TestUnescapeNewlines("", "");
+	TestUnescapeNewlines("\n", "\n");
+	TestUnescapeNewlines("\\n", "\n");
+	TestUnescapeNewlines("\\\n", "\\\n");
+	TestUnescapeNewlines("\\\\n", "\\\n");
+	TestUnescapeNewlines("\\n\\n\\n", "\n\n\n");
+	TestUnescapeNewlines("a\\nb", "a\nb");
+	TestUnescapeNewlines("\na\\nbb\\nccc\\ndddd\\n", "\na\nbb\nccc\ndddd\n");
 }
 
 TEST(Str, Tokenize)
@@ -813,6 +868,31 @@ TEST(Str, Copy)
 	EXPECT_STREQ(aBuf, "DDNet最好了");
 }
 
+TEST(Str, CopyUnterminatedSource)
+{
+	// The source only has to hold dst_size bytes, str_copy must not read
+	// further. CNetConnection relies on this for the disconnect reason
+	// received from the network. Detected by the address sanitizer.
+	const std::vector<char> vSrc(8, 'a');
+	char aBuf[4];
+	str_copy(aBuf, vSrc.data(), sizeof(aBuf));
+	EXPECT_STREQ(aBuf, "aaa");
+	char aExactBuf[9];
+	str_copy(aExactBuf, vSrc.data(), sizeof(aExactBuf));
+	EXPECT_STREQ(aExactBuf, "aaaaaaaa");
+}
+
+TEST(Str, CopyArray)
+{
+	std::array<char, 512> aBuf;
+	str_copy(aBuf, "hello");
+	EXPECT_STREQ(aBuf.data(), "hello");
+
+	std::array<char, 8> aSmallBuf;
+	str_copy(aSmallBuf, "long string");
+	EXPECT_STREQ(aSmallBuf.data(), "long st");
+}
+
 TEST(Str, Append)
 {
 	char aBuf[64];
@@ -931,78 +1011,6 @@ TEST(Str, Utf8OffsetCharsToBytes)
 	EXPECT_EQ(str_utf8_offset_chars_to_bytes("DDNet最好了", 7), 11);
 	EXPECT_EQ(str_utf8_offset_chars_to_bytes("DDNet最好了", 8), 14);
 	EXPECT_EQ(str_utf8_offset_chars_to_bytes("DDNet最好了", 100), 14);
-}
-
-TEST(Str, Time)
-{
-	char aBuf[32] = "foobar";
-
-	EXPECT_EQ(str_time(123456, TIME_DAYS, aBuf, 0), -1);
-	EXPECT_STREQ(aBuf, "foobar");
-
-	EXPECT_EQ(str_time(123456, TIME_SECS_CENTISECS + 1, aBuf, sizeof(aBuf)), -1);
-	EXPECT_STREQ(aBuf, "");
-
-	EXPECT_EQ(str_time(-123456, TIME_MINS_CENTISECS, aBuf, sizeof(aBuf)), 5);
-	EXPECT_STREQ(aBuf, "00.00");
-
-	EXPECT_EQ(str_time(INT64_MAX, TIME_DAYS, aBuf, sizeof(aBuf)), 23);
-	EXPECT_STREQ(aBuf, "1067519911673d 00:09:18");
-
-	EXPECT_EQ(str_time(123456, TIME_DAYS, aBuf, sizeof(aBuf)), 5);
-	EXPECT_STREQ(aBuf, "20:34");
-	EXPECT_EQ(str_time(1234567, TIME_DAYS, aBuf, sizeof(aBuf)), 8);
-	EXPECT_STREQ(aBuf, "03:25:45");
-	EXPECT_EQ(str_time(12345678, TIME_DAYS, aBuf, sizeof(aBuf)), 11);
-	EXPECT_STREQ(aBuf, "1d 10:17:36");
-
-	EXPECT_EQ(str_time(123456, TIME_HOURS, aBuf, sizeof(aBuf)), 5);
-	EXPECT_STREQ(aBuf, "20:34");
-	EXPECT_EQ(str_time(1234567, TIME_HOURS, aBuf, sizeof(aBuf)), 8);
-	EXPECT_STREQ(aBuf, "03:25:45");
-	EXPECT_EQ(str_time(12345678, TIME_HOURS, aBuf, sizeof(aBuf)), 8);
-	EXPECT_STREQ(aBuf, "34:17:36");
-
-	EXPECT_EQ(str_time(123456, TIME_MINS, aBuf, sizeof(aBuf)), 5);
-	EXPECT_STREQ(aBuf, "20:34");
-	EXPECT_EQ(str_time(1234567, TIME_MINS, aBuf, sizeof(aBuf)), 6);
-	EXPECT_STREQ(aBuf, "205:45");
-	EXPECT_EQ(str_time(12345678, TIME_MINS, aBuf, sizeof(aBuf)), 7);
-	EXPECT_STREQ(aBuf, "2057:36");
-
-	EXPECT_EQ(str_time(123456, TIME_HOURS_CENTISECS, aBuf, sizeof(aBuf)), 8);
-	EXPECT_STREQ(aBuf, "20:34.56");
-	EXPECT_EQ(str_time(1234567, TIME_HOURS_CENTISECS, aBuf, sizeof(aBuf)), 11);
-	EXPECT_STREQ(aBuf, "03:25:45.67");
-	EXPECT_EQ(str_time(12345678, TIME_HOURS_CENTISECS, aBuf, sizeof(aBuf)), 11);
-	EXPECT_STREQ(aBuf, "34:17:36.78");
-
-	EXPECT_EQ(str_time(123456, TIME_MINS_CENTISECS, aBuf, sizeof(aBuf)), 8);
-	EXPECT_STREQ(aBuf, "20:34.56");
-	EXPECT_EQ(str_time(1234567, TIME_MINS_CENTISECS, aBuf, sizeof(aBuf)), 9);
-	EXPECT_STREQ(aBuf, "205:45.67");
-	EXPECT_EQ(str_time(12345678, TIME_MINS_CENTISECS, aBuf, sizeof(aBuf)), 10);
-	EXPECT_STREQ(aBuf, "2057:36.78");
-
-	EXPECT_EQ(str_time(123456, TIME_SECS_CENTISECS, aBuf, sizeof(aBuf)), 5);
-	EXPECT_STREQ(aBuf, "34.56");
-	EXPECT_EQ(str_time(1234567, TIME_SECS_CENTISECS, aBuf, sizeof(aBuf)), 5);
-	EXPECT_STREQ(aBuf, "45.67");
-	EXPECT_EQ(str_time(12345678, TIME_SECS_CENTISECS, aBuf, sizeof(aBuf)), 5);
-	EXPECT_STREQ(aBuf, "36.78");
-}
-
-TEST(Str, TimeFloat)
-{
-	char aBuf[64];
-	EXPECT_EQ(str_time_float(123456.78, TIME_DAYS, aBuf, sizeof(aBuf)), 11);
-	EXPECT_STREQ(aBuf, "1d 10:17:36");
-
-	EXPECT_EQ(str_time_float(12.16, TIME_HOURS_CENTISECS, aBuf, sizeof(aBuf)), 5);
-	EXPECT_STREQ(aBuf, "12.16");
-
-	EXPECT_EQ(str_time_float(22.995, TIME_MINS, aBuf, sizeof(aBuf)), 5);
-	EXPECT_STREQ(aBuf, "00:22");
 }
 
 TEST(Str, HasCc)
@@ -1163,6 +1171,11 @@ TEST(Str, ValidFilename)
 	EXPECT_TRUE(str_valid_filename("Auxiliary"));
 	EXPECT_TRUE(str_valid_filename("Null"));
 	EXPECT_TRUE(str_valid_filename("Null.txt"));
+	// reserved names not allowed if followed by space before period
+	EXPECT_FALSE(str_valid_filename("con .txt"));
+	EXPECT_FALSE(str_valid_filename("con .tar.gz"));
+	EXPECT_TRUE(str_valid_filename("COM1 abc"));
+	EXPECT_TRUE(str_valid_filename("COM1 abc.txt"));
 }
 
 TEST(Str, CleanWhitespaces)
@@ -1272,6 +1285,12 @@ TEST(Str, CompFilename)
 	EXPECT_GT(str_comp_filenames("file1337.ext", "file42.ext"), 0);
 	EXPECT_GT(str_comp_filenames("file4414520", "file2055"), 0);
 	EXPECT_LT(str_comp_filenames("file4414520", "file205523151812419"), 0);
+	EXPECT_LT(str_comp_filenames("file1", "file1a"), 0);
+	EXPECT_GT(str_comp_filenames("file1a", "file1"), 0);
+	EXPECT_LT(str_comp_filenames("Kobra 1", "Kobra 1 v2"), 0);
+	EXPECT_GT(str_comp_filenames("Kobra 1 v2", "Kobra 1"), 0);
+	EXPECT_LT(str_comp_filenames("Kobra 1 v2", "Kobra 1 v3"), 0);
+	EXPECT_GT(str_comp_filenames("Kobra 1 v3", "Kobra 1 v2"), 0);
 }
 
 TEST(Str, RightChar)

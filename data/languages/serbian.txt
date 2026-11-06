@@ -22,9 +22,6 @@ Abort
 Add
 == Dodaj
 
-Add Friend
-== Dodaj prijatelja
-
 Address
 == Adresa
 
@@ -1040,9 +1037,6 @@ Speed:
 Angle:
 == Ugao:
 
-Uploading map data to GPU
-== Slanje podataka mape G.J.O.~u (GPU)
-
 Trying to determine UDP connectivity…
 == Pokušavam da odredim K.D.P.(UDP) povezanost
 
@@ -1267,20 +1261,8 @@ Hook collision line
 Hook collision line opacity
 == Providnost linije za dodir kuke
 
-Colors of the hook collision line, in case of a possible collision with:
-== Boje linije za dodir kuke,u slučaju da možeš da se zakačiš:
-
 Your movements are not taken into account when calculating the line colors
 == Vaši pokreti se ne uzimaju u obzir pri izračunavanju boja linija
-
-Nothing hookable
-== Ništa zakačivo
-
-Something hookable
-== Nešto zakačivo
-
-A Tee
-== Igrač
 
 Normal Color
 == Normalna boja
@@ -1329,9 +1311,6 @@ https://ddnet.org/discord
 
 Tutorial
 == Uvod
-
-Can't find a Tutorial server
-== Nemožemo pronaći uvodni server
 
 Loading race demo files
 == Učitavam trkačke demo fajlove
@@ -1425,9 +1404,6 @@ Are you sure that you want to remove the player '%s' from your friends list?
 Are you sure that you want to remove the clan '%s' from your friends list?
 == Да ли сте сигурни да желите да уклоните клан '%s' са листе пријатеља?
 
-Add Clan
-== Додај клан
-
 Play the current demo
 == Пусти тренутни демо запис
 
@@ -1506,9 +1482,6 @@ Unable to delete the folder '%s'. Make sure it's empty first.
 Menu opened. Press Esc key again to close menu.
 == Мени је отворен. Поново притисните тастер Esc да бисте затворили мени.
 
-Save power by lowering refresh rate (higher input latency)
-== Уштедите струју смањивањем стопе освежавања (већа улазна латенција)
-
 Open the settings file
 == Отворите датотеку са подешавањима
 
@@ -1585,6 +1558,12 @@ Moved ingame
 English translation by the DDNet Team
 == Serbian translation by DNR, EliteTee, Kingston and Veljko Radovanovic (VekiPro)
 
+Add clan
+== Додај клан
+
+Add friend
+== Dodaj prijatelja
+
 [Graphics error]
 Out of VRAM. Try setting 'cl_skins_loaded_max' to a lower value or remove custom assets (skins, entities, etc.), especially those with high resolution.
 == 
@@ -1656,6 +1635,9 @@ Team successfully saved by %s. The database connection failed, using generated s
 Save failed!
 == 
 
+Hold Shift to be more precise.
+== 
+
 Auto-sync player camera
 == 
 
@@ -1712,6 +1694,9 @@ Loading commands…
 Loading maps…
 == 
 
+Dummy is not connected
+== 
+
 [Spectating]
 Following %d: %s
 == 
@@ -1722,6 +1707,10 @@ Following %s
 
 [Spectating Camera Mode Icon]
 AUTO
+== 
+
+[Important alert message]
+Tap to dismiss…
 == 
 
 [Important alert message]
@@ -1749,6 +1738,9 @@ Some map images could not be loaded. Check the local console for details.
 Loading map
 == 
 
+Initializing layers
+== 
+
 Some map sounds could not be loaded. Check the local console for details.
 == 
 
@@ -1764,6 +1756,9 @@ Render complete
 Are you sure that you want to restart?
 == 
 
+Joining Tutorial server
+== 
+
 Save skin
 == 
 
@@ -1776,6 +1771,9 @@ There's an unsaved map in the editor, you might want to save it.
 Continue anyway?
 == 
 
+There's an unsaved change in the touch controls editor, you might want to save it.
+== 
+
 This name cannot be used for files and folders
 == 
 
@@ -1786,6 +1784,36 @@ Videos directory
 == 
 
 Video was saved to '%s'
+== 
+
+Could not get server list from master server
+== 
+
+There are no Tutorial servers available
+== 
+
+Please wait…
+== 
+
+Retrying…
+== 
+
+Error joining Tutorial server
+== 
+
+Could not find a Tutorial server. Check your internet connection.
+== 
+
+You're playing on a local server because no online Tutorial server could be found.\n\nYour record will only be saved locally.
+== 
+
+Could not find online Tutorial server.\nStarting and connecting to local server…
+== 
+
+Waiting for local server to stop…
+== 
+
+Waiting for local server to start…
 == 
 
 Error checking player name
@@ -1806,7 +1834,7 @@ Unable to save the skin
 No local servers found (ports %d-%d)
 == 
 
-Could not get server list from master server
+Start and connect to local server
 == 
 
 Example of usage
@@ -1816,6 +1844,15 @@ No login required
 == 
 
 Communities
+== 
+
+Error loading communities
+== 
+
+Click to remove this community from your favorites.
+== 
+
+Click to add this community to your favorites.
 == 
 
 Online friends (%d)
@@ -1883,13 +1920,19 @@ Map size
 map not included
 == 
 
+Refresh the demo list
+== 
+
+Open the selected folder
+== 
+
+Play the selected demo
+== 
+
 Are you sure that you want to disconnect and play this demo?
 == 
 
 Dummy is not allowed on this server
-== 
-
-Please wait…
 == 
 
 Edit touch controls
@@ -1914,6 +1957,9 @@ Could not load default touch controls from file. See local console for details.
 == 
 
 Could not load touch controls from clipboard. See local console for details.
+== 
+
+https://wiki.ddnet.org/wiki/Touch_controls
 == 
 
 Community
@@ -1985,22 +2031,7 @@ Are you sure that you want to delete this button?
 Duplicate
 == 
 
-New button already created
-== 
-
-A new button has already been created, please save or delete it before creating another one.
-== 
-
 Please save your changes before duplicating a button.
-== 
-
-No space for button
-== 
-
-There is not enough space available to place another button.
-== 
-
-There is not enough space available to place another button with this size. The button has been resized.
 == 
 
 Deselect
@@ -2053,6 +2084,9 @@ Bind Toggle
 Predefined
 == 
 
+Info
+== 
+
 Command
 == 
 
@@ -2080,7 +2114,10 @@ Excluded
 Ignore
 == 
 
-Long press on a touch button to select it.
+Button browser
+== 
+
+You can select buttons directly in the list below, or long press on a touch button on the screen to select it. You can also move and resize buttons by touch.
 == 
 
 New button
@@ -2120,6 +2157,10 @@ Aim
 == 
 
 [Direct touch input]
+Relative aim
+== 
+
+[Direct touch input]
 Fire
 == 
 
@@ -2130,13 +2171,19 @@ Hook
 Direct touch input while spectating
 == 
 
+Preview visibilities
+== 
+
 Preview button visibility while the editor is active.
 == 
 
 Show all buttons
 == 
 
-https://wiki.ddnet.org/wiki/Touch_controls
+You can manage your touch controls settings on this page. Only changes that are saved will be available after restarting the client. You can share your touch controls with others by exporting them to the clipboard.\n\nYou can find more detailed information about the touch controls on the DDNet Wiki.
+== 
+
+Open DDNet Wiki
 == 
 
 Error saving touch controls
@@ -2166,6 +2213,9 @@ Save all changes before switching selected button?
 Discard
 == 
 
+No space for button
+== 
+
 There is not enough space available for the button. Check its visibilities and size.
 == 
 
@@ -2188,6 +2238,9 @@ The selected button is overlapping with other buttons.
 == 
 
 Wrong button settings
+== 
+
+There is not enough space available to place another button.
 == 
 
 [Touch button visibilities]
@@ -2255,6 +2308,10 @@ Joystick Aim
 == 
 
 [Predefined touch button behaviors]
+Joystick Relative Aim
+== 
+
+[Predefined touch button behaviors]
 Joystick Fire
 == 
 
@@ -2262,38 +2319,76 @@ Joystick Fire
 Joystick Hook
 == 
 
-[Hertz]
-Hz
+Buttons with this behavior execute console commands like regular key binds.
 == 
 
-Saves file
+Buttons with this behavior cycle between executing one of two or more specified commands.
 == 
 
-Open the saves file
+Buttons with this behavior execute some predefined actions.
 == 
 
-Player info change cooldown
+Opens the ingame menu immediately when released.
 == 
 
-This skin name cannot be used.
+The extra menu button which toggles visibility of buttons with "Extra Menu" visibilities. Also opens the ingame menu on long press.
 == 
 
-Skin could not be loaded due to an error. Check the local console for details.
+Opens the emoticon selector (this does not work with binds).
 == 
 
-Skin could not be found.
+Opens the spectator menu (this does not work with binds).
 == 
 
-No skins match your filter criteria
+Swaps the active action (fire and hook) for direct touch input and virtual joysticks.
 == 
 
-Show FPS
+Uses the active action with the current aiming position.
 == 
 
-Renders your frame rate in the top right
+Virtual joystick which uses the active action.
+== 
+
+Virtual joystick which only aims without using an action.
+== 
+
+Virtual joystick which only aims and moves the mouse pointer relatively.
+== 
+
+Virtual joystick which always uses fire.
+== 
+
+Virtual joystick which always uses hook.
+== 
+
+Player is ingame, i.e. not spectating.
+== 
+
+Zoom is allowed on this server.
+== 
+
+A vote is currently active.
+== 
+
+Dummy is allowed on this server.
+== 
+
+Dummy is currently connected.
+== 
+
+Player is currently authed in rcon.
+== 
+
+Demo player is currently active.
+== 
+
+The extra menu with the given number is activated.
 == 
 
 Tee
+== 
+
+Credits
 == 
 
 Info Messages
@@ -2424,6 +2519,25 @@ Width of your own hook collision line
 Width of others' hook collision line
 == 
 
+Colors of the hook collision line:
+== 
+
+[Hook collision line color]
+When nothing is hookable
+== 
+
+[Hook collision line color]
+When something is hookable
+== 
+
+[Hook collision line color]
+When a Tee is hookable
+== 
+
+[Hook collision line color]
+Hook collision line tip
+== 
+
 Preview 'Hook collisions' being pressed
 == 
 
@@ -2436,6 +2550,21 @@ Dragger Outline Color
 Dragger Inner Color
 == 
 
+Teleport to cursor
+== 
+
+Teleport dummy to cursor
+== 
+
+Scoreboard cursor
+== 
+
+Practice
+== 
+
+Custom
+== 
+
 Enable ghost
 == 
 
@@ -2445,7 +2574,25 @@ Only save improvements
 Show background quads
 == 
 
-AntiPing: prediction margin
+Prediction margin
+== 
+
+Predict events (experimental)
+== 
+
+[AntiPing: predict other players]
+Off
+== 
+
+[AntiPing: predict other players]
+All
+== 
+
+[AntiPing: predict other players]
+Interact
+== 
+
+Always predict frozen players
 == 
 
 Regular background color
@@ -2454,10 +2601,47 @@ Regular background color
 Entities background color
 == 
 
-Basic
+[Hertz]
+Hz
 == 
 
-Custom
+Update Rate
+== 
+
+Save power by lowering update rate (higher input latency)
+== 
+
+Saves file
+== 
+
+Open the saves file
+== 
+
+Show FPS
+== 
+
+Renders your frame rate in the top right
+== 
+
+Player info change cooldown
+== 
+
+No country flags match your filter criteria
+== 
+
+This skin name cannot be used.
+== 
+
+Skin could not be loaded due to an error. Check the local console for details.
+== 
+
+Skin could not be found.
+== 
+
+No skins match your filter criteria
+== 
+
+Basic
 == 
 
 Are you sure that you want to delete '%s'?
@@ -2469,7 +2653,7 @@ Delete skin
 Unable to delete skin
 == 
 
-Scoreboard cursor
+Join
 == 
 
 Download
@@ -2486,7 +2670,10 @@ Download
 Team %d (%d/%d)
 == 
 
-Add friend
+not bound
+== 
+
+Show cursor
 == 
 
 Unmute

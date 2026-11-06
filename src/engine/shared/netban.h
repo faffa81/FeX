@@ -1,7 +1,10 @@
 #ifndef ENGINE_SHARED_NETBAN_H
 #define ENGINE_SHARED_NETBAN_H
 
-#include <base/system.h>
+#include <base/mem.h>
+#include <base/net.h>
+#include <base/str.h>
+#include <base/time.h>
 
 #include <engine/console.h>
 
@@ -186,7 +189,6 @@ public:
 	void UnbanAll();
 	bool IsBanned(const NETADDR *pOrigAddr, char *pBuf, unsigned BufferSize) const;
 
-	static void ConBan(class IConsole::IResult *pResult, void *pUser);
 	static void ConBanRange(class IConsole::IResult *pResult, void *pUser);
 	static void ConUnban(class IConsole::IResult *pResult, void *pUser);
 	static void ConUnbanRange(class IConsole::IResult *pResult, void *pUser);
@@ -209,7 +211,9 @@ void CNetBan::MakeBanInfo(const CBan<T> *pBan, char *pBuf, unsigned BuffSize, in
 	// build type based part
 	char aBuf[256];
 	if(Type == MSGTYPE_PLAYER)
+	{
 		str_copy(aBuf, "You have been banned");
+	}
 	else
 	{
 		char aTemp[256];
@@ -239,7 +243,9 @@ void CNetBan::MakeBanInfo(const CBan<T> *pBan, char *pBuf, unsigned BuffSize, in
 			str_format(pBuf, BuffSize, "%s for %d minutes (%s)", aBuf, Mins, pBan->m_Info.m_aReason);
 	}
 	else
+	{
 		str_format(pBuf, BuffSize, "%s (%s)", aBuf, pBan->m_Info.m_aReason);
+	}
 }
 
 #endif

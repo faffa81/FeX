@@ -36,8 +36,8 @@ void CLayerSwitch::Resize(int NewW, int NewH)
 	mem_zero(pNewSwitchData, (size_t)NewW * NewH * sizeof(CSwitchTile));
 
 	// copy old data
-	for(int y = 0; y < minimum(NewH, m_Height); y++)
-		mem_copy(&pNewSwitchData[y * NewW], &m_pSwitchTile[y * m_Width], minimum(m_Width, NewW) * sizeof(CSwitchTile));
+	for(int y = 0; y < std::min(NewH, m_Height); y++)
+		mem_copy(&pNewSwitchData[y * NewW], &m_pSwitchTile[y * m_Width], std::min(m_Width, NewW) * sizeof(CSwitchTile));
 
 	// replace old
 	delete[] m_pSwitchTile;
@@ -177,10 +177,15 @@ void CLayerSwitch::BrushDraw(CLayer *pBrush, vec2 WorldPos)
 
 void CLayerSwitch::RecordStateChange(int x, int y, SSwitchTileStateChange::SData Previous, SSwitchTileStateChange::SData Current)
 {
-	if(!m_History[y][x].m_Changed)
-		m_History[y][x] = SSwitchTileStateChange{true, Previous, Current};
+	SSwitchTileStateChange &Change = m_History[y][x];
+	if(Change.m_Changed)
+	{
+		Change.m_Current = Current;
+	}
 	else
-		m_History[y][x].m_Current = Current;
+	{
+		Change = SSwitchTileStateChange{true, Previous, Current};
+	}
 }
 
 void CLayerSwitch::BrushFlipX()

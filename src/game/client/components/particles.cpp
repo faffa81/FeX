@@ -2,7 +2,9 @@
 /* If you are missing that file, acquire a complete release at teeworlds.com.                */
 #include "particles.h"
 
+#include <base/dbg.h>
 #include <base/math.h>
+#include <base/time.h>
 
 #include <engine/demo.h>
 #include <engine/graphics.h>
@@ -13,7 +15,7 @@
 
 CParticles::CParticles()
 {
-	OnReset();
+	CParticles::OnReset();
 	m_RenderTrail.m_pParts = this;
 	m_RenderTrailExtra.m_pParts = this;
 	m_RenderExplosions.m_pParts = this;
@@ -34,22 +36,14 @@ void CParticles::OnReset()
 	m_aParticles[MAX_PARTICLES - 1].m_NextPart = -1;
 	m_FirstFree = 0;
 
-	for(int &FirstPart : m_aFirstPart)
-		FirstPart = -1;
+	std::fill(std::begin(m_aFirstPart), std::end(m_aFirstPart), -1);
 }
 
 void CParticles::Add(int Group, CParticle *pPart, float TimePassed)
 {
-	if(Client()->State() == IClient::STATE_DEMOPLAYBACK)
+	if(GameClient()->IsWorldPaused() || GameClient()->IsDemoPlaybackPaused())
 	{
-		const IDemoPlayer::CInfo *pInfo = DemoPlayer()->BaseInfo();
-		if(pInfo->m_Paused)
-			return;
-	}
-	else
-	{
-		if(GameClient()->m_Snap.m_pGameInfoObj && GameClient()->m_Snap.m_pGameInfoObj->m_GameStateFlags & GAMESTATEFLAG_PAUSED)
-			return;
+		return;
 	}
 
 	if(m_FirstFree == -1)
@@ -149,21 +143,9 @@ void CParticles::OnRender()
 		return;
 
 	set_new_tick();
-	int64_t t = time();
-
-	if(Client()->State() == IClient::STATE_DEMOPLAYBACK)
-	{
-		const IDemoPlayer::CInfo *pInfo = DemoPlayer()->BaseInfo();
-		if(!pInfo->m_Paused)
-			Update((float)((t - m_LastRenderTime) / (double)time_freq()) * pInfo->m_Speed);
-	}
-	else
-	{
-		if(GameClient()->m_Snap.m_pGameInfoObj && !(GameClient()->m_Snap.m_pGameInfoObj->m_GameStateFlags & GAMESTATEFLAG_PAUSED))
-			Update((float)((t - m_LastRenderTime) / (double)time_freq()));
-	}
-
-	m_LastRenderTime = t;
+	const int64_t Now = time();
+	Update((float)((Now - m_LastRenderTime) / (double)time_freq()) * GameClient()->GetAnimationPlaybackSpeed());
+	m_LastRenderTime = Now;
 }
 
 void CParticles::OnInit()
@@ -191,10 +173,9 @@ void CParticles::OnInit()
 	Graphics()->QuadContainerUpload(m_ExtraParticleQuadContainerIndex);
 }
 
-bool CParticles::ParticleIsVisibleOnScreen(const vec2 &CurPos, float CurSize)
+bool CParticles::ParticleIsVisibleOnScreen(const vec2 &CurPos, float CurSize) const
 {
-	float ScreenX0, ScreenY0, ScreenX1, ScreenY1;
-	Graphics()->GetScreen(&ScreenX0, &ScreenY0, &ScreenX1, &ScreenY1);
+	CScreenRect ScreenRect = Graphics()->GetScreen();
 
 	// for simplicity assume the worst case rotation, that increases the bounding box around the particle by its diagonal
 	const float SqrtOf2 = std::sqrt(2);
@@ -202,8 +183,9 @@ bool CParticles::ParticleIsVisibleOnScreen(const vec2 &CurPos, float CurSize)
 
 	// always uses the mid of the particle
 	float SizeHalf = CurSize / 2;
+	ScreenRect.Expand(SizeHalf);
 
-	return CurPos.x + SizeHalf >= ScreenX0 && CurPos.x - SizeHalf <= ScreenX1 && CurPos.y + SizeHalf >= ScreenY0 && CurPos.y - SizeHalf <= ScreenY1;
+	return ScreenRect.Inside(CurPos);
 }
 
 void CParticles::RenderGroup(int Group)
@@ -268,8 +250,9 @@ void CParticles::RenderGroup(int Group)
 			// the current position, respecting the size, is inside the viewport, render it, else ignore
 			if(ParticleIsVisibleOnScreen(p, Size))
 			{
-				if((size_t)CurParticleRenderCount == gs_GraphicsMaxParticlesRenderCount || LastColor.r != m_aParticles[i].m_Color.r || LastColor.g != m_aParticles[i].m_Color.g || LastColor.b != m_aParticles[i].m_Color.b || LastColor.a != Alpha || LastQuadOffset != QuadOffset)
+				if((size_t)CurParticleRenderCount == GRAPHICS_MAX_PARTICLES_RENDER_COUNT || LastColor.r != m_aParticles[i].m_Color.r || LastColor.g != m_aParticles[i].m_Color.g || LastColor.b != m_aParticles[i].m_Color.b || LastColor.a != Alpha || LastQuadOffset != QuadOffset)
 				{
+					dbg_assert(LastQuadOffset >= FirstParticleOffset, "Invalid particle offsets: %d < %d", LastQuadOffset, FirstParticleOffset);
 					Graphics()->TextureSet(aParticles[LastQuadOffset - FirstParticleOffset]);
 					Graphics()->RenderQuadContainerAsSpriteMultiple(ParticleQuadContainerIndex, LastQuadOffset - FirstParticleOffset, CurParticleRenderCount, s_aParticleRenderInfo);
 					CurParticleRenderCount = 0;
@@ -298,14 +281,17 @@ void CParticles::RenderGroup(int Group)
 			i = m_aParticles[i].m_NextPart;
 		}
 
-		Graphics()->TextureSet(aParticles[LastQuadOffset - FirstParticleOffset]);
-		Graphics()->RenderQuadContainerAsSpriteMultiple(ParticleQuadContainerIndex, LastQuadOffset - FirstParticleOffset, CurParticleRenderCount, s_aParticleRenderInfo);
+		if(CurParticleRenderCount > 0)
+		{
+			dbg_assert(LastQuadOffset >= FirstParticleOffset, "Invalid particle offsets: %d < %d", LastQuadOffset, FirstParticleOffset);
+			Graphics()->TextureSet(aParticles[LastQuadOffset - FirstParticleOffset]);
+			Graphics()->RenderQuadContainerAsSpriteMultiple(ParticleQuadContainerIndex, LastQuadOffset - FirstParticleOffset, CurParticleRenderCount, s_aParticleRenderInfo);
+		}
 	}
 	else
 	{
 		int i = m_aFirstPart[Group];
 
-		Graphics()->BlendNormal();
 		Graphics()->WrapClamp();
 
 		while(i != -1)
@@ -341,6 +327,5 @@ void CParticles::RenderGroup(int Group)
 			i = m_aParticles[i].m_NextPart;
 		}
 		Graphics()->WrapNormal();
-		Graphics()->BlendNormal();
 	}
 }

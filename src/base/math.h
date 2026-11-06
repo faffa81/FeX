@@ -3,24 +3,27 @@
 #ifndef BASE_MATH_H
 #define BASE_MATH_H
 
-#include <algorithm>
 #include <cmath>
 #include <concepts>
 #include <cstdlib>
+#include <limits>
 
 template<typename T>
 concept Numeric = std::integral<T> || std::floating_point<T>;
 
 constexpr float pi = 3.1415926535897932384626433f;
+constexpr float normalized_golden_angle = 137.50776f / 360.0f;
+
+// NaN and floats outside the int range convert to INT_MIN, a plain cast would be undefined
+constexpr int round_truncate(float f)
+{
+	constexpr float imin = (float)std::numeric_limits<int>::min();
+	return f >= imin && f < -imin ? (int)f : std::numeric_limits<int>::min();
+}
 
 constexpr int round_to_int(float f)
 {
-	return f > 0 ? (int)(f + 0.5f) : (int)(f - 0.5f);
-}
-
-constexpr int round_truncate(float f)
-{
-	return (int)f;
+	return f > 0 ? round_truncate(f + 0.5f) : round_truncate(f - 0.5f);
 }
 
 template<typename T, typename TB>
@@ -133,26 +136,6 @@ public:
 	}
 };
 
-template<Numeric T>
-constexpr T minimum(T a, T b)
-{
-	return std::min(a, b);
-}
-template<Numeric T>
-constexpr T minimum(T a, T b, T c)
-{
-	return std::min(std::min(a, b), c);
-}
-template<Numeric T>
-constexpr T maximum(T a, T b)
-{
-	return std::max(a, b);
-}
-template<Numeric T>
-constexpr T maximum(T a, T b, T c)
-{
-	return std::max(std::max(a, b), c);
-}
 template<typename T>
 constexpr T absolute(T a)
 {

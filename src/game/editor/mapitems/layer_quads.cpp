@@ -7,6 +7,8 @@
 #include <game/editor/editor.h>
 #include <game/editor/editor_actions.h>
 
+#include <limits>
+
 CLayerQuads::CLayerQuads(CEditorMap *pMap) :
 	CLayer(pMap, LAYERTYPE_QUADS)
 {
@@ -23,16 +25,18 @@ CLayerQuads::CLayerQuads(const CLayerQuads &Other) :
 
 CLayerQuads::~CLayerQuads() = default;
 
-void CLayerQuads::Render(bool QuadPicker)
+void CLayerQuads::Render(const CEditorMap *pRenderMap)
 {
-	Graphics()->TextureClear();
-	if(m_Image >= 0 && (size_t)m_Image < Map()->m_vpImages.size())
-		Graphics()->TextureSet(Map()->m_vpImages[m_Image]->m_Texture);
+	if(m_Image >= 0 && (size_t)m_Image < pRenderMap->m_vpImages.size())
+	{
+		Graphics()->TextureSet(pRenderMap->m_vpImages[m_Image]->m_Texture);
+	}
+	else
+	{
+		Graphics()->TextureClear();
+	}
 
-	Graphics()->BlendNone();
-	Editor()->RenderMap()->ForceRenderQuads(m_vQuads.data(), m_vQuads.size(), LAYERRENDERFLAG_OPAQUE, Editor());
-	Graphics()->BlendNormal();
-	Editor()->RenderMap()->ForceRenderQuads(m_vQuads.data(), m_vQuads.size(), LAYERRENDERFLAG_TRANSPARENT, Editor());
+	Editor()->RenderMap()->ForceRenderQuads(m_vQuads.data(), m_vQuads.size(), &pRenderMap->m_EnvelopeEvaluator, 1.0f);
 }
 
 CQuad *CLayerQuads::NewQuad(int x, int y, int Width, int Height)
@@ -116,8 +120,9 @@ void CLayerQuads::BrushPlace(CLayer *pBrush, vec2 WorldPos)
 	if(m_Readonly)
 		return;
 
-	CLayerQuads *pQuadLayer = static_cast<CLayerQuads *>(pBrush);
+	const CLayerQuads *pQuadLayer = static_cast<const CLayerQuads *>(pBrush);
 	std::vector<CQuad> vAddedQuads;
+	vAddedQuads.reserve(pQuadLayer->m_vQuads.size());
 	for(const auto &Quad : pQuadLayer->m_vQuads)
 	{
 		CQuad NewQuad = Quad;
@@ -126,40 +131,61 @@ void CLayerQuads::BrushPlace(CLayer *pBrush, vec2 WorldPos)
 			Point.x += f2fx(WorldPos.x);
 			Point.y += f2fx(WorldPos.y);
 		}
-
-		m_vQuads.push_back(NewQuad);
 		vAddedQuads.push_back(NewQuad);
 	}
-	Map()->m_EditorHistory.RecordAction(std::make_shared<CEditorActionQuadPlace>(Map(), Editor()->m_SelectedGroup, Editor()->m_vSelectedLayers[0], vAddedQuads));
+	m_vQuads.insert(m_vQuads.end(), vAddedQuads.begin(), vAddedQuads.end());
+	Map()->m_EditorHistory.RecordAction(std::make_shared<CEditorActionQuadPlace>(Map(), Map()->m_SelectedGroup, Map()->m_vSelectedLayers[0], vAddedQuads));
 	Map()->OnModify();
 }
 
 void CLayerQuads::BrushFlipX()
 {
+	// calculate bounding box
+	int LeftBound = std::numeric_limits<int>::max();
+	int RightBound = std::numeric_limits<int>::min();
 	for(auto &Quad : m_vQuads)
 	{
-		std::swap(Quad.m_aPoints[0], Quad.m_aPoints[1]);
-		std::swap(Quad.m_aPoints[2], Quad.m_aPoints[3]);
+		for(int PointId = 0; PointId < 4; ++PointId)
+		{
+			LeftBound = std::min(Quad.m_aPoints[PointId].x, LeftBound);
+			RightBound = std::max(Quad.m_aPoints[PointId].x, RightBound);
+		}
+	}
+
+	// flip box
+	for(auto &Quad : m_vQuads)
+	{
+		for(auto &Point : Quad.m_aPoints)
+		{
+			Point.x = RightBound - (Point.x - LeftBound);
+		}
 	}
 	Map()->OnModify();
 }
 
 void CLayerQuads::BrushFlipY()
 {
+	// calculate bounding box
+	int TopBound = std::numeric_limits<int>::max();
+	int BottomBound = std::numeric_limits<int>::min();
 	for(auto &Quad : m_vQuads)
 	{
-		std::swap(Quad.m_aPoints[0], Quad.m_aPoints[2]);
-		std::swap(Quad.m_aPoints[1], Quad.m_aPoints[3]);
+		for(int PointId = 0; PointId < 4; ++PointId)
+		{
+			TopBound = std::min(Quad.m_aPoints[PointId].y, TopBound);
+			BottomBound = std::max(Quad.m_aPoints[PointId].y, BottomBound);
+		}
+	}
+
+	// flip box
+	for(auto &Quad : m_vQuads)
+	{
+		for(auto &Point : Quad.m_aPoints)
+		{
+			Point.y = BottomBound - (Point.y - TopBound);
+		}
 	}
 	Map()->OnModify();
-}
-
-static void Rotate(vec2 *pCenter, vec2 *pPoint, float Rotation)
-{
-	float x = pPoint->x - pCenter->x;
-	float y = pPoint->y - pCenter->y;
-	pPoint->x = x * std::cos(Rotation) - y * std::sin(Rotation) + pCenter->x;
-	pPoint->y = x * std::sin(Rotation) + y * std::cos(Rotation) + pCenter->y;
 }
 
 void CLayerQuads::BrushRotate(float Amount)
@@ -169,15 +195,11 @@ void CLayerQuads::BrushRotate(float Amount)
 	Center.x /= 2;
 	Center.y /= 2;
 
+	const ivec2 CenterFixed = ivec2(f2fx(Center.x), f2fx(Center.y));
+
 	for(auto &Quad : m_vQuads)
 	{
-		for(auto &Point : Quad.m_aPoints)
-		{
-			vec2 Pos(fx2f(Point.x), fx2f(Point.y));
-			Rotate(&Center, &Pos, Amount);
-			Point.x = f2fx(Pos.x);
-			Point.y = f2fx(Pos.y);
-		}
+		RotatePoints(CenterFixed, Quad.m_aPoints, std::size(Quad.m_aPoints), Amount);
 	}
 }
 
@@ -190,8 +212,8 @@ void CLayerQuads::GetSize(float *pWidth, float *pHeight)
 	{
 		for(const auto &Point : Quad.m_aPoints)
 		{
-			*pWidth = maximum(*pWidth, fx2f(Point.x));
-			*pHeight = maximum(*pHeight, fx2f(Point.y));
+			*pWidth = std::max(*pWidth, fx2f(Point.x));
+			*pHeight = std::max(*pHeight, fx2f(Point.y));
 		}
 	}
 }
@@ -206,14 +228,14 @@ CUi::EPopupMenuFunctionResult CLayerQuads::RenderProperties(CUIRect *pToolBox)
 	static int s_aIds[(int)ELayerQuadsProp::NUM_PROPS] = {0};
 	int NewVal = 0;
 	auto [State, Prop] = Editor()->DoPropertiesWithState<ELayerQuadsProp>(pToolBox, aProps, s_aIds, &NewVal);
-	if(Prop != ELayerQuadsProp::PROP_NONE && (State == EEditState::END || State == EEditState::ONE_GO))
+	if(Prop != ELayerQuadsProp::NONE && (State == EEditState::END || State == EEditState::ONE_GO))
 	{
 		Map()->OnModify();
 	}
 
 	Map()->m_LayerQuadPropTracker.Begin(this, Prop, State);
 
-	if(Prop == ELayerQuadsProp::PROP_IMAGE)
+	if(Prop == ELayerQuadsProp::IMAGE)
 	{
 		if(NewVal >= 0)
 			m_Image = NewVal % Map()->m_vpImages.size();
@@ -224,6 +246,18 @@ CUi::EPopupMenuFunctionResult CLayerQuads::RenderProperties(CUIRect *pToolBox)
 	Map()->m_LayerQuadPropTracker.End(Prop, State);
 
 	return CUi::POPUP_KEEP_OPEN;
+}
+
+bool CLayerQuads::IsEnvelopeUsed(int EnvelopeIndex) const
+{
+	return std::any_of(m_vQuads.begin(), m_vQuads.end(), [&](const auto &Quad) {
+		return Quad.m_PosEnv == EnvelopeIndex || Quad.m_ColorEnv == EnvelopeIndex;
+	});
+}
+
+bool CLayerQuads::IsImageUsed(int ImageIndex) const
+{
+	return m_Image == ImageIndex;
 }
 
 void CLayerQuads::ModifyImageIndex(const FIndexModifyFunction &IndexModifyFunction)

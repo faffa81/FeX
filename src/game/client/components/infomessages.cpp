@@ -2,6 +2,8 @@
 /* If you are missing that file, acquire a complete release at teeworlds.com.                */
 #include "infomessages.h"
 
+#include <base/time.h>
+
 #include <engine/graphics.h>
 #include <engine/shared/config.h>
 #include <engine/shared/protocol.h>
@@ -128,16 +130,15 @@ void CInfoMessages::AddInfoMsg(const CInfoMsg &InfoMsg)
 	const float Height = 1.5f * 400.0f * 3.0f;
 	const float Width = Height * Graphics()->ScreenAspect();
 
-	float ScreenX0, ScreenY0, ScreenX1, ScreenY1;
-	Graphics()->GetScreen(&ScreenX0, &ScreenY0, &ScreenX1, &ScreenY1);
-	Graphics()->MapScreen(0, 0, Width, Height);
+	CScreenRect ScreenRect = Graphics()->GetScreen();
+	Graphics()->MapScreenToSize(Width, Height);
 
 	m_InfoMsgCurrent = (m_InfoMsgCurrent + 1) % MAX_INFOMSGS;
 	DeleteTextContainers(m_aInfoMsgs[m_InfoMsgCurrent]);
 	m_aInfoMsgs[m_InfoMsgCurrent] = InfoMsg;
 	CreateTextContainersIfNotCreated(m_aInfoMsgs[m_InfoMsgCurrent]);
 
-	Graphics()->MapScreen(ScreenX0, ScreenY0, ScreenX1, ScreenY1);
+	Graphics()->MapScreen(ScreenRect);
 }
 
 void CInfoMessages::CreateTextContainersIfNotCreated(CInfoMsg &InfoMsg)
@@ -232,7 +233,7 @@ void CInfoMessages::OnTeamKillMessage(const CNetMsg_Sv_KillMsgTeam *pMsg)
 	std::stable_sort(vStrongWeakSorted.begin(), vStrongWeakSorted.end(), [](auto &Left, auto &Right) { return Left.second > Right.second; });
 
 	CInfoMsg Kill = CreateInfoMsg(TYPE_KILL);
-	Kill.m_TeamSize = minimum<int>(vStrongWeakSorted.size(), MAX_KILLMSG_TEAM_MEMBERS);
+	Kill.m_TeamSize = std::min((int)vStrongWeakSorted.size(), (int)MAX_KILLMSG_TEAM_MEMBERS);
 
 	Kill.m_VictimDDTeam = pMsg->m_Team;
 	for(int i = 0; i < Kill.m_TeamSize; i++)
@@ -298,10 +299,10 @@ void CInfoMessages::OnRaceFinishMessage(const CNetMsg_Sv_RaceFinish *pMsg)
 	if(Finish.m_Diff)
 	{
 		char aBuf[64];
-		str_time_float(absolute(Finish.m_Diff) / 1000.0f, TIME_HOURS_CENTISECS, aBuf, sizeof(aBuf));
+		str_time_float(absolute(Finish.m_Diff) / 1000.0f, ETimeFormat::HOURS_CENTISECS, aBuf, sizeof(aBuf));
 		str_format(Finish.m_aDiffText, sizeof(Finish.m_aDiffText), "(%c%s)", Finish.m_Diff < 0 ? '-' : '+', aBuf);
 	}
-	str_time_float(pMsg->m_Time / 1000.0f, TIME_HOURS_CENTISECS, Finish.m_aTimeText, sizeof(Finish.m_aTimeText));
+	str_time_float(pMsg->m_Time / 1000.0f, ETimeFormat::HOURS_CENTISECS, Finish.m_aTimeText, sizeof(Finish.m_aTimeText));
 
 	AddInfoMsg(Finish);
 }
@@ -342,10 +343,7 @@ void CInfoMessages::RenderKillMsg(const CInfoMsg &InfoMsg, float x, float y)
 	// render victim tees
 	for(int j = (InfoMsg.m_TeamSize - 1); j >= 0; j--)
 	{
-		vec2 OffsetToMid;
-		CRenderTools::GetRenderTeeOffsetToRenderedTee(CAnimState::GetIdle(), &InfoMsg.m_apVictimManagedTeeRenderInfos[j]->TeeRenderInfo(), OffsetToMid);
-		const vec2 TeeRenderPos = vec2(x, y + ROW_HEIGHT / 2.0f + OffsetToMid.y);
-		RenderTools()->RenderTee(CAnimState::GetIdle(), &InfoMsg.m_apVictimManagedTeeRenderInfos[j]->TeeRenderInfo(), EMOTE_PAIN, vec2(-1, 0), TeeRenderPos);
+		RenderTools()->RenderIdleTeeAtCenter(&InfoMsg.m_apVictimManagedTeeRenderInfos[j]->TeeRenderInfo(), vec2(x, y + ROW_HEIGHT / 2.0f), EMOTE_PAIN, vec2(-1, 0));
 		x -= 44.0f;
 	}
 
@@ -382,10 +380,7 @@ void CInfoMessages::RenderKillMsg(const CInfoMsg &InfoMsg, float x, float y)
 		x -= 24.0f;
 		if(InfoMsg.m_pKillerManagedTeeRenderInfo != nullptr)
 		{
-			vec2 OffsetToMid;
-			CRenderTools::GetRenderTeeOffsetToRenderedTee(CAnimState::GetIdle(), &InfoMsg.m_pKillerManagedTeeRenderInfo->TeeRenderInfo(), OffsetToMid);
-			const vec2 TeeRenderPos = vec2(x, y + ROW_HEIGHT / 2.0f + OffsetToMid.y);
-			RenderTools()->RenderTee(CAnimState::GetIdle(), &InfoMsg.m_pKillerManagedTeeRenderInfo->TeeRenderInfo(), EMOTE_ANGRY, vec2(1, 0), TeeRenderPos);
+			RenderTools()->RenderIdleTeeAtCenter(&InfoMsg.m_pKillerManagedTeeRenderInfo->TeeRenderInfo(), vec2(x, y + ROW_HEIGHT / 2.0f), EMOTE_ANGRY, vec2(1, 0));
 		}
 		x -= 32.0f;
 
@@ -433,11 +428,8 @@ void CInfoMessages::RenderFinishMsg(const CInfoMsg &InfoMsg, float x, float y)
 
 	// render victim tee
 	x -= 24.0f;
-	vec2 OffsetToMid;
-	CRenderTools::GetRenderTeeOffsetToRenderedTee(CAnimState::GetIdle(), &InfoMsg.m_apVictimManagedTeeRenderInfos[0]->TeeRenderInfo(), OffsetToMid);
-	const vec2 TeeRenderPos = vec2(x, y + ROW_HEIGHT / 2.0f + OffsetToMid.y);
 	const int Emote = InfoMsg.m_RecordPersonal ? EMOTE_HAPPY : EMOTE_NORMAL;
-	RenderTools()->RenderTee(CAnimState::GetIdle(), &InfoMsg.m_apVictimManagedTeeRenderInfos[0]->TeeRenderInfo(), Emote, vec2(-1, 0), TeeRenderPos);
+	RenderTools()->RenderIdleTeeAtCenter(&InfoMsg.m_apVictimManagedTeeRenderInfos[0]->TeeRenderInfo(), vec2(x, y + ROW_HEIGHT / 2.0f), Emote, vec2(-1, 0));
 }
 
 void CInfoMessages::OnRender()
@@ -448,7 +440,7 @@ void CInfoMessages::OnRender()
 	const float Height = 1.5f * 400.0f * 3.0f;
 	const float Width = Height * Graphics()->ScreenAspect();
 
-	Graphics()->MapScreen(0, 0, Width, Height);
+	Graphics()->MapScreenToSize(Width, Height);
 	Graphics()->SetColor(1.0f, 1.0f, 1.0f, 1.0f);
 
 	int Showfps = g_Config.m_ClShowfps;

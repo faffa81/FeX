@@ -1,6 +1,9 @@
 #include "menu_background.h"
 
-#include <base/system.h>
+#include <base/dbg.h>
+#include <base/log.h>
+#include <base/str.h>
+#include <base/time.h>
 
 #include <engine/graphics.h>
 #include <engine/map.h>
@@ -39,6 +42,7 @@ std::array<vec2, CMenuBackground::NUM_POS> GenerateMenuBackgroundPositions()
 	Positions[CMenuBackground::POS_SETTINGS_SOUND] = vec2(1000.0f, 1000.0f);
 	Positions[CMenuBackground::POS_SETTINGS_DDNET] = vec2(1200.0f, 200.0f);
 	Positions[CMenuBackground::POS_SETTINGS_ASSETS] = vec2(500.0f, 500.0f);
+	Positions[CMenuBackground::POS_SETTINGS_CREDITS] = vec2(1100.0f, 1000.0f);
 	for(int i = 0; i < CMenuBackground::POS_BROWSER_CUSTOM_NUM; ++i)
 		Positions[CMenuBackground::POS_BROWSER_CUSTOM0 + i] = vec2(500.0f + (75.0f * (float)i), 650.0f - (75.0f * (float)i));
 	for(int i = 0; i < CMenuBackground::POS_SETTINGS_RESERVED_NUM; ++i)
@@ -67,11 +71,6 @@ CMenuBackground::CMenuBackground() :
 	m_Loading = false;
 }
 
-CBackgroundEngineMap *CMenuBackground::CreateBGMap()
-{
-	return new CMenuMap;
-}
-
 void CMenuBackground::OnInterfacesInit(CGameClient *pClient)
 {
 	CComponentInterfaces::OnInterfacesInit(pClient);
@@ -81,12 +80,11 @@ void CMenuBackground::OnInterfacesInit(CGameClient *pClient)
 
 void CMenuBackground::OnInit()
 {
-	m_pBackgroundMap = CreateBGMap();
-	m_pMap = m_pBackgroundMap;
+	m_pBackgroundMap = CreateMap();
+	m_pMap = m_pBackgroundMap.get();
 
 	m_IsInit = true;
 
-	Kernel()->RegisterInterface<CMenuMap>((CMenuMap *)m_pBackgroundMap);
 	if(g_Config.m_ClMenuMap[0] != '\0')
 		LoadMenuBackground();
 
@@ -104,13 +102,14 @@ void CMenuBackground::LoadThemeIcon(CTheme &Theme)
 	char aIconPath[IO_MAX_PATH_LENGTH];
 	str_format(aIconPath, sizeof(aIconPath), "themes/%s.png", Theme.m_Name.empty() ? "none" : Theme.m_Name.c_str());
 	Theme.m_IconTexture = Graphics()->LoadTexture(aIconPath, IStorage::TYPE_ALL);
-
-	char aBuf[32 + IO_MAX_PATH_LENGTH];
 	if(Theme.m_IconTexture.IsNullTexture())
-		str_format(aBuf, sizeof(aBuf), "failed to load theme icon '%s'", aIconPath);
+	{
+		log_error("menuthemes", "failed to load theme icon '%s'", aIconPath);
+	}
 	else
-		str_format(aBuf, sizeof(aBuf), "loaded theme icon '%s'", aIconPath);
-	Console()->Print(IConsole::OUTPUT_LEVEL_ADDINFO, "menuthemes", aBuf);
+	{
+		log_trace("menuthemes", "loaded theme icon '%s'", aIconPath);
+	}
 }
 
 int CMenuBackground::ThemeScan(const char *pName, int IsDir, int DirType, void *pUser)
@@ -155,9 +154,7 @@ int CMenuBackground::ThemeScan(const char *pName, int IsDir, int DirType, void *
 	}
 
 	// make new theme
-	char aBuf[512];
-	str_format(aBuf, sizeof(aBuf), "added theme '%s' from 'themes/%s'", aThemeName, pName);
-	pSelf->Console()->Print(IConsole::OUTPUT_LEVEL_ADDINFO, "menuthemes", aBuf);
+	log_trace("menuthemes", "added theme '%s' from 'themes/%s'", aThemeName, pName);
 	pSelf->m_vThemes.emplace_back(aThemeName, IsDay, IsNight);
 	pSelf->LoadThemeIcon(pSelf->m_vThemes.back());
 
@@ -173,11 +170,11 @@ void CMenuBackground::LoadMenuBackground(bool HasDayHint, bool HasNightHint)
 	if(!m_IsInit)
 		return;
 
-	if(m_Loaded && m_pMap == m_pBackgroundMap)
+	if(m_Loaded && m_pMap == m_pBackgroundMap.get())
 		m_pMap->Unload();
 
 	m_Loaded = false;
-	m_pMap = m_pBackgroundMap;
+	m_pMap = m_pBackgroundMap.get();
 	m_pLayers = m_pBackgroundLayers;
 	m_pImages = m_pBackgroundImages;
 
@@ -192,26 +189,29 @@ void CMenuBackground::LoadMenuBackground(bool HasDayHint, bool HasNightHint)
 		const char *pMenuMap = g_Config.m_ClMenuMap;
 		if(str_comp(pMenuMap, "auto") == 0)
 		{
-			switch(time_season())
+			const ETimeSeason Season = time_season();
+			switch(Season)
 			{
-			case SEASON_SPRING:
-			case SEASON_EASTER:
+			case ETimeSeason::SPRING:
+			case ETimeSeason::EASTER:
 				pMenuMap = "heavens";
 				break;
-			case SEASON_SUMMER:
+			case ETimeSeason::SUMMER:
 				pMenuMap = "jungle";
 				break;
-			case SEASON_AUTUMN:
-			case SEASON_HALLOWEEN:
+			case ETimeSeason::AUTUMN:
+			case ETimeSeason::HALLOWEEN:
 				pMenuMap = "autumn";
 				break;
-			case SEASON_WINTER:
-			case SEASON_XMAS:
+			case ETimeSeason::WINTER:
+			case ETimeSeason::XMAS:
 				pMenuMap = "winter";
 				break;
-			case SEASON_NEWYEAR:
+			case ETimeSeason::NEWYEAR:
 				pMenuMap = "newyear";
 				break;
+			default:
+				dbg_assert_failed("Invalid season: %d", (int)Season);
 			}
 		}
 		else if(str_comp(pMenuMap, "rand") == 0)
@@ -234,7 +234,7 @@ void CMenuBackground::LoadMenuBackground(bool HasDayHint, bool HasNightHint)
 		if(!m_Loaded && ((HasDayHint && IsDaytime) || (HasNightHint && !IsDaytime)))
 		{
 			str_format(aBuf, sizeof(aBuf), "themes/%s_%s.map", pMenuMap, IsDaytime ? "day" : "night");
-			if(m_pMap->Load(aBuf, IStorage::TYPE_ALL))
+			if(m_pMap->Load(pMenuMap, Storage(), aBuf, IStorage::TYPE_ALL))
 			{
 				m_Loaded = true;
 			}
@@ -243,7 +243,7 @@ void CMenuBackground::LoadMenuBackground(bool HasDayHint, bool HasNightHint)
 		if(!m_Loaded)
 		{
 			str_format(aBuf, sizeof(aBuf), "themes/%s.map", pMenuMap);
-			if(m_pMap->Load(aBuf, IStorage::TYPE_ALL))
+			if(m_pMap->Load(pMenuMap, Storage(), aBuf, IStorage::TYPE_ALL))
 			{
 				m_Loaded = true;
 			}
@@ -252,7 +252,7 @@ void CMenuBackground::LoadMenuBackground(bool HasDayHint, bool HasNightHint)
 		if(!m_Loaded && ((HasDayHint && !IsDaytime) || (HasNightHint && IsDaytime)))
 		{
 			str_format(aBuf, sizeof(aBuf), "themes/%s_%s.map", pMenuMap, IsDaytime ? "night" : "day");
-			if(m_pMap->Load(aBuf, IStorage::TYPE_ALL))
+			if(m_pMap->Load(pMenuMap, Storage(), aBuf, IStorage::TYPE_ALL))
 			{
 				m_Loaded = true;
 			}
@@ -260,36 +260,26 @@ void CMenuBackground::LoadMenuBackground(bool HasDayHint, bool HasNightHint)
 
 		if(m_Loaded)
 		{
-			m_pLayers->Init(m_pMap, true);
+			m_pLayers->Init(m_pMap, true, true);
 
 			m_pImages->LoadBackground(m_pLayers, m_pMap);
 			CMapLayers::OnMapLoad();
 
 			// look for custom positions
-			CMapItemLayerTilemap *pTLayer = m_pLayers->GameLayer();
-			if(pTLayer)
+			CMapItemLayerTilemap *pGameLayer = m_pLayers->GameLayer();
+			const CTile *pTiles = static_cast<const CTile *>(m_pLayers->Map()->GetData(pGameLayer->m_Data));
+			for(int y = 0; y < pGameLayer->m_Height; ++y)
 			{
-				int DataIndex = pTLayer->m_Data;
-				unsigned int Size = m_pLayers->Map()->GetDataSize(DataIndex);
-				void *pTiles = m_pLayers->Map()->GetData(DataIndex);
-				unsigned int TileSize = sizeof(CTile);
-
-				if(Size >= pTLayer->m_Width * pTLayer->m_Height * TileSize)
+				for(int x = 0; x < pGameLayer->m_Width; ++x)
 				{
-					for(int y = 0; y < pTLayer->m_Height; ++y)
+					unsigned char Index = pTiles[y * pGameLayer->m_Width + x].m_Index;
+					if(Index >= TILE_TIME_CHECKPOINT_FIRST && Index <= TILE_TIME_CHECKPOINT_LAST)
 					{
-						for(int x = 0; x < pTLayer->m_Width; ++x)
-						{
-							unsigned char Index = ((CTile *)pTiles)[y * pTLayer->m_Width + x].m_Index;
-							if(Index >= TILE_TIME_CHECKPOINT_FIRST && Index <= TILE_TIME_CHECKPOINT_LAST)
-							{
-								int ArrayIndex = std::clamp<int>((Index - TILE_TIME_CHECKPOINT_FIRST), 0, NUM_POS);
-								m_aPositions[ArrayIndex] = vec2(x * 32.0f + 16.0f, y * 32.0f + 16.0f);
-							}
-
-							x += ((CTile *)pTiles)[y * pTLayer->m_Width + x].m_Skip;
-						}
+						int ArrayIndex = std::clamp<int>((Index - TILE_TIME_CHECKPOINT_FIRST), 0, NUM_POS);
+						m_aPositions[ArrayIndex] = vec2(x * 32.0f + 16.0f, y * 32.0f + 16.0f);
 					}
+
+					x += pTiles[y * pGameLayer->m_Width + x].m_Skip;
 				}
 			}
 		}

@@ -80,16 +80,15 @@ namespace DefaultConfig
 #undef MACRO_CONFIG_STR
 }
 
+// Note: The values of some of these flags cannot be changed because they are recorded to Teehistorian files.
 enum
 {
 	CFGFLAG_SAVE = 1 << 0,
 	CFGFLAG_CLIENT = 1 << 1,
 	CFGFLAG_SERVER = 1 << 2,
 	CFGFLAG_STORE = 1 << 3,
-	CFGFLAG_MASTER = 1 << 4,
+	// 1 << 4 has been removed. Do not reuse this flag.
 	CFGFLAG_ECON = 1 << 5,
-	// DDRace
-
 	CMDFLAG_TEST = 1 << 6,
 	CFGFLAG_CHAT = 1 << 7,
 	CFGFLAG_GAME = 1 << 8,
@@ -100,6 +99,14 @@ enum
 	CFGFLAG_INSENSITIVE = 1 << 13,
 	CMDFLAG_PRACTICE = 1 << 14,
 };
+
+#ifdef CONF_DEBUG
+#define CFGFLAG_DEBUG_SERVER CFGFLAG_SERVER
+#define CFGFLAG_DEBUG_CLIENT CFGFLAG_CLIENT
+#else
+#define CFGFLAG_DEBUG_SERVER 0
+#define CFGFLAG_DEBUG_CLIENT 0
+#endif
 
 struct SConfigVariable
 {
@@ -133,6 +140,7 @@ struct SConfigVariable
 	virtual void Register() = 0;
 	virtual bool IsDefault() const = 0;
 	virtual void Serialize(char *pOut, size_t Size) const = 0;
+	virtual void SerializeHumanReadable(char *pOut, size_t Size) const = 0;
 	virtual void ResetToDefault() = 0;
 	virtual void ResetToOld() = 0;
 
@@ -167,6 +175,7 @@ struct SIntConfigVariable : public SConfigVariable
 	bool IsDefault() const override;
 	void Serialize(char *pOut, size_t Size, int Value) const;
 	void Serialize(char *pOut, size_t Size) const override;
+	void SerializeHumanReadable(char *pOut, size_t Size) const override;
 	void SetValue(int Value);
 	void ResetToDefault() override;
 	void ResetToOld() override;
@@ -209,6 +218,7 @@ struct SColorConfigVariable : public SConfigVariable
 	bool IsDefault() const override;
 	void Serialize(char *pOut, size_t Size, unsigned Value) const;
 	void Serialize(char *pOut, size_t Size) const override;
+	void SerializeHumanReadable(char *pOut, size_t Size) const override;
 	void SetValue(unsigned Value);
 	void ResetToDefault() override;
 	void ResetToOld() override;
@@ -229,6 +239,7 @@ struct SStringConfigVariable : public SConfigVariable
 	bool IsDefault() const override;
 	void Serialize(char *pOut, size_t Size, const char *pValue) const;
 	void Serialize(char *pOut, size_t Size) const override;
+	void SerializeHumanReadable(char *pOut, size_t Size) const override;
 	void SetValue(const char *pValue);
 	void ResetToDefault() override;
 	void ResetToOld() override;
@@ -283,6 +294,8 @@ public:
 	void StoreUnknownCommand(const char *pCommand) override;
 
 	void PossibleConfigVariables(const char *pStr, int FlagMask, POSSIBLECFGFUNC pfnCallback, void *pUserData) override;
+
+	const SConfigVariable *FindVariable(const char *pScriptName) const override;
 };
 
 #endif

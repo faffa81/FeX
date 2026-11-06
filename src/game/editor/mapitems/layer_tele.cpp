@@ -37,8 +37,8 @@ void CLayerTele::Resize(int NewW, int NewH)
 	mem_zero(pNewTeleData, (size_t)NewW * NewH * sizeof(CTeleTile));
 
 	// copy old data
-	for(int y = 0; y < minimum(NewH, m_Height); y++)
-		mem_copy(&pNewTeleData[y * NewW], &m_pTeleTile[y * m_Width], minimum(m_Width, NewW) * sizeof(CTeleTile));
+	for(int y = 0; y < std::min(NewH, m_Height); y++)
+		mem_copy(&pNewTeleData[y * NewW], &m_pTeleTile[y * m_Width], std::min(m_Width, NewW) * sizeof(CTeleTile));
 
 	// replace old
 	delete[] m_pTeleTile;
@@ -171,11 +171,14 @@ void CLayerTele::BrushDraw(CLayer *pBrush, vec2 WorldPos)
 
 void CLayerTele::RecordStateChange(int x, int y, STeleTileStateChange::SData Previous, STeleTileStateChange::SData Current)
 {
-	if(!m_History[y][x].m_Changed)
-		m_History[y][x] = STeleTileStateChange{true, Previous, Current};
+	STeleTileStateChange &Change = m_History[y][x];
+	if(Change.m_Changed)
+	{
+		Change.m_Current = Current;
+	}
 	else
 	{
-		m_History[y][x].m_Current = Current;
+		Change = STeleTileStateChange{true, Previous, Current};
 	}
 }
 
@@ -341,58 +344,71 @@ bool CLayerTele::ContainsElementWithId(int Id, bool Checkpoint) const
 
 void CLayerTele::GetPos(int Number, int Offset, int &TeleX, int &TeleY)
 {
-	int Match = -1;
-	ivec2 MatchPos = ivec2(-1, -1);
 	TeleX = -1;
 	TeleY = -1;
 
-	auto FindTile = [this, &Match, &MatchPos, &Number, &Offset]() {
-		for(int x = 0; x < m_Width; x++)
+	auto IsMatchingTile = [&](int i) {
+		if(m_pTeleTile[i].m_Number == 0 || m_pTeleTile[i].m_Number != Number)
+			return false;
+		return IsValidTeleTile(m_pTeleTile[i].m_Type) && IsTeleTileNumberUsedAny(m_pTeleTile[i].m_Type);
+	};
+
+	const float MinClusterDistance = 10.0f;
+
+	int Match = -1;
+	ivec2 MatchPos = ivec2(-1, -1);
+
+	auto FindTile = [&]() {
+		for(int y = 0; y < m_Height; y++)
 		{
-			for(int y = 0; y < m_Height; y++)
+			for(int x = 0; x < m_Width; x++)
 			{
-				int i = y * m_Width + x;
-				if(!IsTeleTileNumberUsedAny(m_pTeleTile[i].m_Type))
+				if(!IsMatchingTile(y * m_Width + x))
 					continue;
-				int Tele = m_pTeleTile[i].m_Number;
-				if(Number == Tele)
+				Match++;
+				if(Offset != -1)
 				{
-					Match++;
-					if(Offset != -1)
+					if(Match == Offset)
 					{
-						if(Match == Offset)
-						{
-							MatchPos = ivec2(x, y);
-							m_GotoTeleOffset = Match;
-							return;
-						}
-						continue;
-					}
-					MatchPos = ivec2(x, y);
-					if(m_GotoTeleLastPos != ivec2(-1, -1))
-					{
-						if(distance(m_GotoTeleLastPos, MatchPos) < 10.0f)
-						{
-							m_GotoTeleOffset++;
-							continue;
-						}
-					}
-					m_GotoTeleLastPos = MatchPos;
-					if(Match == m_GotoTeleOffset)
+						MatchPos = ivec2(x, y);
+						m_GotoTeleOffset = Match;
 						return;
+					}
+					continue;
+				}
+				if(Match <= m_GotoTeleOffset)
+					continue;
+				bool FarEnough = m_GotoTeleLastPos == ivec2(-1, -1) || distance(vec2(m_GotoTeleLastPos.x, m_GotoTeleLastPos.y), vec2(x, y)) >= MinClusterDistance;
+				if(FarEnough)
+				{
+					MatchPos = ivec2(x, y);
+					m_GotoTeleOffset = Match;
+					return;
 				}
 			}
 		}
 	};
 	FindTile();
-
-	if(MatchPos == ivec2(-1, -1))
-		return;
-	if(Match < m_GotoTeleOffset)
+	// Wrap around when no further distinct location found
+	if(MatchPos == ivec2(-1, -1) && Offset == -1 && Match != -1)
+	{
 		m_GotoTeleOffset = -1;
-	TeleX = MatchPos.x;
-	TeleY = MatchPos.y;
-	m_GotoTeleOffset++;
+		m_GotoTeleLastPos = ivec2(-1, -1);
+		Match = -1;
+		FindTile();
+	}
+
+	if(MatchPos != ivec2(-1, -1))
+	{
+		TeleX = MatchPos.x;
+		TeleY = MatchPos.y;
+		m_GotoTeleLastPos = MatchPos;
+	}
+	else
+	{
+		m_GotoTeleLastPos = ivec2(-1, -1);
+		m_GotoTeleOffset = 0;
+	}
 }
 
 std::shared_ptr<CLayer> CLayerTele::Duplicate() const

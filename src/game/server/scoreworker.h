@@ -1,6 +1,8 @@
 #ifndef GAME_SERVER_SCOREWORKER_H
 #define GAME_SERVER_SCOREWORKER_H
 
+#include <base/str.h>
+
 #include <engine/map.h>
 #include <engine/server/databases/connection_pool.h>
 #include <engine/shared/protocol.h>
@@ -22,6 +24,8 @@ enum
 {
 	NUM_CHECKPOINTS = MAX_CHECKPOINTS,
 	TIMESTAMP_STR_LENGTH = 20, // 2019-04-02 19:38:36
+	// Every team member name at maximum length, joined by ", " and " & ".
+	MAX_TEAM_NAMES_LENGTH = MAX_CLIENTS * (MAX_NAME_LENGTH + 2),
 };
 
 struct CScorePlayerResult : ISqlResult
@@ -235,9 +239,7 @@ public:
 	void Reset()
 	{
 		m_BestTime.reset();
-		for(float &BestTimeCp : m_aBestTimeCp)
-			BestTimeCp = 0;
-
+		std::fill(std::begin(m_aBestTimeCp), std::end(m_aBestTimeCp), 0.0f);
 		m_RecordStopTick = -1;
 	}
 
@@ -283,6 +285,12 @@ struct CTeamrank
 	bool NextSqlResult(IDbConnection *pSqlServer, bool *pEnd, char *pError, int ErrorSize);
 
 	bool SamePlayers(const std::vector<std::string> *pvSortedNames);
+
+	// Formats the names into pBuf, joined by ", " and " & ". Names that don't
+	// fit are summarized as " & %d more".
+	void FormatNames(char *pBuf, int BufSize) const;
+
+	void FormatTeamTopLine(char *pMessage, int MessageSize, int Rank, const char *pTime) const;
 
 	static bool GetSqlTop5Team(IDbConnection *pSqlServer, bool *pEnd, char *pError, int ErrorSize, char (*paMessages)[512], int *StartLine, int Count);
 };

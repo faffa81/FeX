@@ -4,6 +4,11 @@
 
 #include "ui.h"
 
+#include <base/dbg.h>
+#include <base/mem.h>
+#include <base/str.h>
+
+#include <engine/graphics.h>
 #include <engine/keys.h>
 #include <engine/shared/config.h>
 
@@ -17,8 +22,6 @@ EInputPriority CLineInput::ms_ActiveInputPriority = EInputPriority::NONE;
 
 vec2 CLineInput::ms_CompositionWindowPosition = vec2(0.0f, 0.0f);
 float CLineInput::ms_CompositionLineHeight = 0.0f;
-
-char CLineInput::ms_aStars[128] = "";
 
 void CLineInput::SetBuffer(char *pStr, size_t MaxSize, size_t MaxChars)
 {
@@ -76,7 +79,7 @@ void CLineInput::SetRange(const char *pString, size_t Begin, size_t End)
 		{
 			if(AddedCharSize)
 				mem_copy(m_pStr + Begin, pString, AddedCharSize);
-			mem_move(m_pStr + Begin + AddedCharSize, m_pStr + Begin + RemovedCharSize, m_Len - Begin - AddedCharSize);
+			mem_move(m_pStr + Begin + AddedCharSize, m_pStr + Begin + RemovedCharSize, m_Len - Begin - RemovedCharSize);
 		}
 		else if(AddedCharSize > RemovedCharSize)
 			mem_move(m_pStr + End + AddedCharSize - RemovedCharSize, m_pStr + End, m_Len - End);
@@ -121,11 +124,8 @@ const char *CLineInput::GetDisplayedString()
 	if(!IsHidden())
 		return m_pStr;
 
-	const size_t NumStars = minimum(GetNumChars(), sizeof(ms_aStars) - 1);
-	for(size_t i = 0; i < NumStars; ++i)
-		ms_aStars[i] = '*';
-	ms_aStars[NumStars] = '\0';
-	return ms_aStars;
+	m_StarsBuffer.resize(GetNumChars(), '*');
+	return m_StarsBuffer.c_str();
 }
 
 void CLineInput::MoveCursor(EMoveDirection Direction, bool MoveWord, const char *pStr, size_t MaxSize, size_t *pCursorPos)
@@ -184,7 +184,7 @@ size_t CLineInput::OffsetFromActualToDisplay(size_t ActualOffset)
 size_t CLineInput::OffsetFromDisplayToActual(size_t DisplayOffset)
 {
 	if(IsHidden() || (m_pfnCalculateOffsetCallback && m_pfnCalculateOffsetCallback()))
-		return str_utf8_offset_bytes_to_chars(m_pStr, DisplayOffset);
+		return str_utf8_offset_chars_to_bytes(m_pStr, DisplayOffset);
 	return DisplayOffset;
 }
 
@@ -272,6 +272,8 @@ bool CLineInput::ProcessInput(const IInput::CEvent &Event)
 						m_SelectionStart = m_CursorPos;
 					else if(m_SelectionEnd == OldCursorPos)
 						m_SelectionEnd = m_CursorPos;
+					if(m_SelectionStart > m_SelectionEnd)
+						std::swap(m_SelectionStart, m_SelectionEnd);
 				}
 			}
 
@@ -296,6 +298,8 @@ bool CLineInput::ProcessInput(const IInput::CEvent &Event)
 						m_SelectionEnd = m_CursorPos;
 					else if(m_SelectionStart == OldCursorPos)
 						m_SelectionStart = m_CursorPos;
+					if(m_SelectionStart > m_SelectionEnd)
+						std::swap(m_SelectionStart, m_SelectionEnd);
 				}
 			}
 
@@ -346,25 +350,27 @@ bool CLineInput::ProcessInput(const IInput::CEvent &Event)
 					{
 						if(ClipboardText[i] == '\n')
 						{
-							if(i == Begin)
+							size_t End = i;
+							if(End > 0 && ClipboardText[End - 1] == '\r')
 							{
-								Begin++;
-								continue;
+								--End;
 							}
-							std::string Line = ClipboardText.substr(Begin, i - Begin + 1);
+							std::string Line = ClipboardText.substr(Begin, End - Begin);
+							str_sanitize_cc(Line.data());
 							if(FirstLine)
 							{
-								str_sanitize_cc(Line.data());
 								SetRange(Line.c_str(), m_SelectionStart, m_SelectionEnd);
 								FirstLine = false;
-								Line = GetString();
+							}
+							else
+							{
+								Set(Line.c_str());
 							}
 							Begin = i + 1;
-							str_sanitize_cc(Line.data());
-							m_pfnClipboardLineCallback(Line.c_str());
+							m_pfnClipboardLineCallback(GetString());
 						}
 					}
-					std::string Line = ClipboardText.substr(Begin, i - Begin + 1);
+					std::string Line = ClipboardText.substr(Begin);
 					str_sanitize_cc(Line.data());
 					if(FirstLine)
 						SetRange(Line.c_str(), m_SelectionStart, m_SelectionEnd);
@@ -566,21 +572,20 @@ void CLineInput::RenderCandidates()
 	const float Margin = 4.0f;
 	const float Height = 300.0f;
 	const float Width = Height * Graphics()->ScreenAspect();
-	const int ScreenWidth = Graphics()->ScreenWidth();
-	const int ScreenHeight = Graphics()->ScreenHeight();
+	const vec2 ScreenSize = Graphics()->ScreenSize();
 
-	Graphics()->MapScreen(0.0f, 0.0f, Width, Height);
+	Graphics()->MapScreenToSize(Width, Height);
 
 	// Determine longest candidate width
 	float LongestCandidateWidth = 0.0f;
 	for(int i = 0; i < Input()->GetCandidateCount(); ++i)
-		LongestCandidateWidth = maximum(LongestCandidateWidth, TextRender()->TextWidth(FontSize, Input()->GetCandidate(i)));
+		LongestCandidateWidth = std::max(LongestCandidateWidth, TextRender()->TextWidth(FontSize, Input()->GetCandidate(i)));
 
 	const float NumOffset = 8.0f;
 	const float RectWidth = LongestCandidateWidth + Margin + NumOffset + 2.0f * Padding;
 	const float RectHeight = Input()->GetCandidateCount() * (FontSize + 2.0f * Padding) + Margin;
 
-	vec2 Position = ms_CompositionWindowPosition / vec2(ScreenWidth, ScreenHeight) * vec2(Width, Height);
+	vec2 Position = ms_CompositionWindowPosition / ScreenSize * vec2(Width, Height);
 	Position.y += Margin;
 
 	// Move candidate window left if needed
@@ -589,11 +594,10 @@ void CLineInput::RenderCandidates()
 
 	// Move candidate window up if needed
 	if(Position.y + RectHeight + Margin > Height)
-		Position.y -= RectHeight + ms_CompositionLineHeight / ScreenHeight * Height + 2.0f * Margin;
+		Position.y -= RectHeight + ms_CompositionLineHeight / ScreenSize.y * Height + 2.0f * Margin;
 
 	Graphics()->TextureClear();
 	Graphics()->QuadsBegin();
-	Graphics()->BlendNormal();
 
 	// Draw window shadow
 	Graphics()->SetColor(0.0f, 0.0f, 0.0f, 0.8f);
@@ -628,12 +632,7 @@ void CLineInput::RenderCandidates()
 
 void CLineInput::SetCompositionWindowPosition(vec2 Anchor, float LineHeight)
 {
-	float ScreenX0, ScreenY0, ScreenX1, ScreenY1;
-	const int ScreenWidth = Graphics()->ScreenWidth();
-	const int ScreenHeight = Graphics()->ScreenHeight();
-	Graphics()->GetScreen(&ScreenX0, &ScreenY0, &ScreenX1, &ScreenY1);
-
-	const vec2 ScreenScale = vec2(ScreenWidth / (ScreenX1 - ScreenX0), ScreenHeight / (ScreenY1 - ScreenY0));
+	const vec2 ScreenScale = Graphics()->ScreenSize() / Graphics()->GetScreen().Size();
 	ms_CompositionWindowPosition = Anchor * ScreenScale;
 	ms_CompositionLineHeight = LineHeight * ScreenScale.y;
 	Input()->SetCompositionWindowPosition(ms_CompositionWindowPosition.x, ms_CompositionWindowPosition.y, ms_CompositionLineHeight);

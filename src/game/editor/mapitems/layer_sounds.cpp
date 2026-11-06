@@ -23,11 +23,10 @@ CLayerSounds::CLayerSounds(const CLayerSounds &Other) :
 
 CLayerSounds::~CLayerSounds() = default;
 
-void CLayerSounds::Render(bool Tileset)
+void CLayerSounds::Render(const CEditorMap *pRenderMap)
 {
 	// TODO: nice texture
 	Graphics()->TextureClear();
-	Graphics()->BlendNormal();
 	Graphics()->QuadsBegin();
 
 	// draw falloff distance
@@ -35,7 +34,7 @@ void CLayerSounds::Render(bool Tileset)
 	for(const auto &Source : m_vSources)
 	{
 		ColorRGBA Offset = ColorRGBA(0.0f, 0.0f, 0.0f, 0.0f);
-		Editor()->EnvelopeEval(Source.m_PosEnvOffset, Source.m_PosEnv, Offset, 2);
+		pRenderMap->m_EnvelopeEvaluator.EnvelopeEval(Source.m_PosEnvOffset, Source.m_PosEnv, Offset, 2);
 		const vec2 Position = vec2(fx2f(Source.m_Position.x) + Offset.r, fx2f(Source.m_Position.y) + Offset.g);
 		const float Falloff = Source.m_Falloff / 255.0f;
 
@@ -75,7 +74,7 @@ void CLayerSounds::Render(bool Tileset)
 	for(const auto &Source : m_vSources)
 	{
 		ColorRGBA Offset = ColorRGBA(0.0f, 0.0f, 0.0f, 0.0f);
-		Editor()->EnvelopeEval(Source.m_PosEnvOffset, Source.m_PosEnv, Offset, 2);
+		pRenderMap->m_EnvelopeEvaluator.EnvelopeEval(Source.m_PosEnvOffset, Source.m_PosEnv, Offset, 2);
 		const vec2 Position = vec2(fx2f(Source.m_Position.x) + Offset.r, fx2f(Source.m_Position.y) + Offset.g);
 		Graphics()->DrawSprite(Position.x, Position.y, Editor()->MapView()->ScaleLength(s_SourceVisualSize));
 	}
@@ -153,7 +152,7 @@ void CLayerSounds::BrushPlace(CLayer *pBrush, vec2 WorldPos)
 		m_vSources.push_back(NewSource);
 		vAddedSources.push_back(NewSource);
 	}
-	Map()->m_EditorHistory.RecordAction(std::make_shared<CEditorActionSoundPlace>(Map(), Editor()->m_SelectedGroup, Editor()->m_vSelectedLayers[0], vAddedSources));
+	Map()->m_EditorHistory.RecordAction(std::make_shared<CEditorActionSoundPlace>(Map(), Map()->m_SelectedGroup, Map()->m_vSelectedLayers[0], vAddedSources));
 	Map()->OnModify();
 }
 
@@ -167,14 +166,14 @@ CUi::EPopupMenuFunctionResult CLayerSounds::RenderProperties(CUIRect *pToolBox)
 	static int s_aIds[(int)ELayerSoundsProp::NUM_PROPS] = {0};
 	int NewVal = 0;
 	auto [State, Prop] = Editor()->DoPropertiesWithState<ELayerSoundsProp>(pToolBox, aProps, s_aIds, &NewVal);
-	if(Prop != ELayerSoundsProp::PROP_NONE && (State == EEditState::END || State == EEditState::ONE_GO))
+	if(Prop != ELayerSoundsProp::NONE && (State == EEditState::END || State == EEditState::ONE_GO))
 	{
 		Map()->OnModify();
 	}
 
 	Map()->m_LayerSoundsPropTracker.Begin(this, Prop, State);
 
-	if(Prop == ELayerSoundsProp::PROP_SOUND)
+	if(Prop == ELayerSoundsProp::SOUND)
 	{
 		if(NewVal >= 0)
 			m_Sound = NewVal % Map()->m_vpSounds.size();
@@ -185,6 +184,18 @@ CUi::EPopupMenuFunctionResult CLayerSounds::RenderProperties(CUIRect *pToolBox)
 	Map()->m_LayerSoundsPropTracker.End(Prop, State);
 
 	return CUi::POPUP_KEEP_OPEN;
+}
+
+bool CLayerSounds::IsEnvelopeUsed(int EnvelopeIndex) const
+{
+	return std::any_of(m_vSources.begin(), m_vSources.end(), [&](const auto &Source) {
+		return Source.m_PosEnv == EnvelopeIndex || Source.m_SoundEnv == EnvelopeIndex;
+	});
+}
+
+bool CLayerSounds::IsSoundUsed(int SoundIndex) const
+{
+	return m_Sound == SoundIndex;
 }
 
 void CLayerSounds::ModifySoundIndex(const FIndexModifyFunction &IndexModifyFunction)

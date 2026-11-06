@@ -1,14 +1,32 @@
 /* (c) Shereef Marzouk. See "licence DDRace.txt" and the readme.txt in the root of the distribution for more information. */
 #include "gamecontext.h"
 
+#include <base/io.h>
+#include <base/log.h>
+#include <base/time.h>
+
 #include <engine/antibot.h>
+#include <engine/server/authmanager.h>
 #include <engine/shared/config.h>
 
+#include <generated/protocol.h>
+
+#include <game/mapitems.h>
 #include <game/server/entities/character.h>
-#include <game/server/gamemodes/DDRace.h>
+#include <game/server/gamemodes/ddnet.h>
 #include <game/server/player.h>
 #include <game/server/save.h>
 #include <game/server/teams.h>
+
+#include <algorithm>
+
+static vec2 ClampPlacement(const CCollision *pCollision, vec2 Pos)
+{
+	// Further out a tee is killed by CEntity::GameLayerClipped anyway
+	constexpr float Margin = 200 * 32.0f;
+	return vec2(std::clamp(Pos.x, -Margin, pCollision->GetWidth() * 32.0f + Margin),
+		std::clamp(Pos.y, -Margin, pCollision->GetHeight() * 32.0f + Margin));
+}
 
 void CGameContext::ConGoLeft(IConsole::IResult *pResult, void *pUserData)
 {
@@ -75,7 +93,9 @@ void CGameContext::MoveCharacter(int ClientId, int X, int Y, bool Raw)
 	if(!pChr)
 		return;
 
-	pChr->Move(vec2((Raw ? 1 : 32) * X, (Raw ? 1 : 32) * Y));
+	const float Scale = Raw ? 1.0f : 32.0f; // Scaled in float, 32 * X would overflow an int
+	pChr->Move(vec2(Scale * X, Scale * Y));
+	pChr->SetPosition(ClampPlacement(Collision(), pChr->Core()->m_Pos));
 	pChr->ResetVelocity();
 	pChr->m_DDRaceState = ERaceState::CHEATED;
 }
@@ -85,7 +105,7 @@ void CGameContext::ConKillPlayer(IConsole::IResult *pResult, void *pUserData)
 	CGameContext *pSelf = (CGameContext *)pUserData;
 	if(!CheckClientId(pResult->m_ClientId))
 		return;
-	int Victim = pResult->GetVictim();
+	int Victim = pResult->GetVictim(0);
 
 	if(pSelf->m_apPlayers[Victim])
 	{
@@ -147,7 +167,7 @@ void CGameContext::ConSuper(IConsole::IResult *pResult, void *pUserData)
 	if(pChr && !pChr->IsSuper())
 	{
 		pChr->SetSuper(true);
-		pChr->UnFreeze();
+		pChr->Unfreeze();
 	}
 }
 
@@ -203,14 +223,14 @@ void CGameContext::ConFreeze(IConsole::IResult *pResult, void *pUserData)
 		pChr->Freeze();
 }
 
-void CGameContext::ConUnFreeze(IConsole::IResult *pResult, void *pUserData)
+void CGameContext::ConUnfreeze(IConsole::IResult *pResult, void *pUserData)
 {
 	CGameContext *pSelf = (CGameContext *)pUserData;
 	if(!CheckClientId(pResult->m_ClientId))
 		return;
 	CCharacter *pChr = pSelf->GetPlayerChar(pResult->m_ClientId);
 	if(pChr)
-		pChr->UnFreeze();
+		pChr->Unfreeze();
 }
 
 void CGameContext::ConDeep(IConsole::IResult *pResult, void *pUserData)
@@ -232,7 +252,7 @@ void CGameContext::ConUnDeep(IConsole::IResult *pResult, void *pUserData)
 	if(pChr)
 	{
 		pChr->SetDeepFrozen(false);
-		pChr->UnFreeze();
+		pChr->Unfreeze();
 	}
 }
 
@@ -338,6 +358,32 @@ void CGameContext::ConUnEndlessJump(IConsole::IResult *pResult, void *pUserData)
 		pChr->SetEndlessJump(false);
 }
 
+void CGameContext::ConSetSwitch(IConsole::IResult *pResult, void *pUserData)
+{
+	CGameContext *pSelf = (CGameContext *)pUserData;
+	CCharacter *pChr = pSelf->GetPlayerChar(pResult->m_ClientId);
+	if(!pChr)
+	{
+		log_info("chatresp", "You can't set switch while you are dead/a spectator.");
+		return;
+	}
+	const int Team = pChr->Team();
+	const int Switch = pResult->GetInteger(0);
+	if(!in_range(Switch, (int)pSelf->Switchers().size() - 1))
+	{
+		log_info("chatresp", "Invalid switch ID");
+		return;
+	}
+	const bool State = pResult->NumArguments() == 1 ? !pSelf->Switchers()[Switch].m_aStatus[Team] : pResult->GetInteger(1) != 0;
+	const int EndTick = pResult->NumArguments() == 3 ? pSelf->Server()->Tick() + 1 + pResult->GetInteger(2) * pSelf->Server()->TickSpeed() : 0;
+	pSelf->Switchers()[Switch].m_aStatus[Team] = State;
+	pSelf->Switchers()[Switch].m_aEndTick[Team] = EndTick;
+	if(State)
+		pSelf->Switchers()[Switch].m_aType[Team] = EndTick ? TILE_SWITCHTIMEDOPEN : TILE_SWITCHOPEN;
+	else
+		pSelf->Switchers()[Switch].m_aType[Team] = EndTick ? TILE_SWITCHTIMEDCLOSE : TILE_SWITCHCLOSE;
+}
+
 void CGameContext::ConUnWeapons(IConsole::IResult *pResult, void *pUserData)
 {
 	CGameContext *pSelf = (CGameContext *)pUserData;
@@ -387,10 +433,27 @@ void CGameContext::ModifyWeapons(IConsole::IResult *pResult, void *pUserData,
 
 void CGameContext::Teleport(CCharacter *pChr, vec2 Pos)
 {
+	Pos = ClampPlacement(Collision(), Pos);
 	pChr->SetPosition(Pos);
 	pChr->m_Pos = Pos;
 	pChr->m_PrevPos = Pos;
 	pChr->m_DDRaceState = ERaceState::CHEATED;
+}
+
+void CGameContext::PracticeTeleport(CCharacter *pChr, vec2 Pos)
+{
+	CMapItemLayerTilemap *pGameLayer = m_Layers.GameLayer();
+	constexpr float OuterKillTileBoundaryDistance = 201 * 32.f;
+	const float MapWidth = (pGameLayer->m_Width * 32) + (OuterKillTileBoundaryDistance * 2.f);
+	const float MapHeight = (pGameLayer->m_Height * 32) + (OuterKillTileBoundaryDistance * 2.f);
+	Pos.x = std::clamp(Pos.x, (-OuterKillTileBoundaryDistance) + 1.f, (-OuterKillTileBoundaryDistance) + MapWidth - 1.f);
+	Pos.y = std::clamp(Pos.y, (-OuterKillTileBoundaryDistance) + 1.f, (-OuterKillTileBoundaryDistance) + MapHeight - 1.f);
+
+	Teleport(pChr, Pos);
+	pChr->ResetJumps();
+	pChr->Unfreeze();
+	pChr->ResetVelocity();
+	pChr->GetPlayer()->m_LastTeleTee.Save(pChr);
 }
 
 void CGameContext::ConToTeleporter(IConsole::IResult *pResult, void *pUserData)
@@ -431,11 +494,32 @@ void CGameContext::ConTeleport(IConsole::IResult *pResult, void *pUserData)
 	CGameContext *pSelf = (CGameContext *)pUserData;
 	if(!CheckClientId(pResult->m_ClientId))
 		return;
-	int Tele = pResult->NumArguments() == 2 ? pResult->GetInteger(0) : pResult->m_ClientId;
-	int TeleTo = pResult->NumArguments() ? pResult->GetInteger(pResult->NumArguments() - 1) : pResult->m_ClientId;
+	const bool HasSource = pResult->NumArguments() == 2;
+	int Tele = HasSource ? pResult->GetVictim(0) : pResult->m_ClientId;
+	int TeleTo = pResult->NumArguments() ? pResult->GetVictim(HasSource ? 1 : 0) : pResult->m_ClientId;
 	int AuthLevel = pSelf->Server()->GetAuthedState(pResult->m_ClientId);
 
-	if(Tele != pResult->m_ClientId && AuthLevel < g_Config.m_SvTeleOthersAuthLevel)
+	auto MinTeleLevel = CAuthManager::RoleNameToAuthLevel(g_Config.m_SvTeleOthersAuthLevel);
+	if(!MinTeleLevel.has_value())
+	{
+		// if it is not a valid role name like "helper"
+		// we fallback to backcompat numeric values
+		if(str_comp(g_Config.m_SvTeleOthersAuthLevel, "1") == 0)
+		{
+			MinTeleLevel = AUTHED_HELPER;
+		}
+		else if(str_comp(g_Config.m_SvTeleOthersAuthLevel, "2") == 0)
+		{
+			MinTeleLevel = AUTHED_MOD;
+		}
+		else if(str_comp(g_Config.m_SvTeleOthersAuthLevel, "3") == 0)
+		{
+			MinTeleLevel = AUTHED_ADMIN;
+		}
+	}
+	dbg_assert(MinTeleLevel.has_value(), "sv_tele_others_auth_level got unexpected value '%s'", g_Config.m_SvTeleOthersAuthLevel);
+
+	if(Tele != pResult->m_ClientId && AuthLevel < MinTeleLevel.value())
 	{
 		pSelf->Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "tele", "you aren't allowed to tele others");
 		return;
@@ -447,7 +531,7 @@ void CGameContext::ConTeleport(IConsole::IResult *pResult, void *pUserData)
 	if(pChr && pPlayer && pSelf->GetPlayerChar(TeleTo))
 	{
 		// default to view pos when character is not available
-		vec2 Pos = pPlayer->m_ViewPos;
+		vec2 Pos = pSelf->m_apPlayers[TeleTo]->m_ViewPos;
 		if(pResult->NumArguments() == 0 && !pPlayer->IsPaused() && pChr->IsAlive())
 		{
 			vec2 Target = vec2(pChr->Core()->m_Input.m_TargetX, pChr->Core()->m_Input.m_TargetY);
@@ -455,7 +539,7 @@ void CGameContext::ConTeleport(IConsole::IResult *pResult, void *pUserData)
 		}
 		pSelf->Teleport(pChr, Pos);
 		pChr->ResetJumps();
-		pChr->UnFreeze();
+		pChr->Unfreeze();
 		pChr->SetVelocity(vec2(0, 0));
 	}
 }
@@ -477,7 +561,7 @@ void CGameContext::ConKill(IConsole::IResult *pResult, void *pUserData)
 void CGameContext::ConForcePause(IConsole::IResult *pResult, void *pUserData)
 {
 	CGameContext *pSelf = (CGameContext *)pUserData;
-	int Victim = pResult->GetVictim();
+	int Victim = pResult->GetVictim(0);
 	int Seconds = 0;
 	if(pResult->NumArguments() > 1)
 		Seconds = std::clamp(pResult->GetInteger(1), 0, 360);
@@ -524,16 +608,19 @@ void CGameContext::ConSetDDRTeam(IConsole::IResult *pResult, void *pUserData)
 		return;
 	}
 
-	int Target = pResult->GetVictim();
-	int Team = pResult->GetInteger(1);
+	const int Target = pResult->GetVictim(0);
+	CPlayer *pPlayer = pSelf->m_apPlayers[Target];
+	if(!pPlayer)
+		return;
 
+	const int Team = pResult->GetInteger(1);
 	if(!pController->Teams().IsValidTeamNumber(Team))
 		return;
 
 	CCharacter *pChr = pSelf->GetPlayerChar(Target);
 
-	if((pSelf->GetDDRaceTeam(Target) && pController->Teams().GetDDRaceState(pSelf->m_apPlayers[Target]) == ERaceState::STARTED) || (pChr && pController->Teams().IsPractice(pChr->Team())))
-		pSelf->m_apPlayers[Target]->KillCharacter(WEAPON_GAME);
+	if((pSelf->GetDDRaceTeam(Target) && pController->Teams().GetDDRaceState(pPlayer) == ERaceState::STARTED) || (pChr && pController->Teams().IsPractice(pChr->Team())))
+		pPlayer->KillCharacter(WEAPON_GAME);
 
 	pController->Teams().SetForceCharacterTeam(Target, Team);
 	pController->Teams().SetTeamLock(Team, true);
@@ -544,7 +631,11 @@ void CGameContext::ConUninvite(IConsole::IResult *pResult, void *pUserData)
 	CGameContext *pSelf = (CGameContext *)pUserData;
 	auto *pController = pSelf->m_pController;
 
-	pController->Teams().SetClientInvited(pResult->GetInteger(1), pResult->GetVictim(), false);
+	const int Target = pResult->GetVictim(0);
+	if(!pSelf->m_apPlayers[Target])
+		return;
+
+	pController->Teams().SetClientInvited(pResult->GetInteger(1), Target, false);
 }
 
 void CGameContext::ConVoteNo(IConsole::IResult *pResult, void *pUserData)
@@ -571,14 +662,20 @@ void CGameContext::ConDrySave(IConsole::IResult *pResult, void *pUserData)
 
 	char aTimestamp[32];
 	str_timestamp(aTimestamp, sizeof(aTimestamp));
+	const char *pSaveState = SavedTeam.GetString();
+	if(!pSaveState)
+	{
+		pSelf->SendChatTarget(pResult->m_ClientId, "Your team is too large to save");
+		return;
+	}
+
 	char aBuf[64];
-	str_format(aBuf, sizeof(aBuf), "%s_%s_%s.save", pSelf->Server()->GetMapName(), aTimestamp, pSelf->Server()->GetAuthName(pResult->m_ClientId));
+	str_format(aBuf, sizeof(aBuf), "%s_%s_%s.save", pSelf->Map()->BaseName(), aTimestamp, pSelf->Server()->GetAuthName(pResult->m_ClientId));
 	IOHANDLE File = pSelf->Storage()->OpenFile(aBuf, IOFLAG_WRITE, IStorage::TYPE_SAVE);
 	if(!File)
 		return;
 
-	int Len = str_length(SavedTeam.GetString());
-	io_write(File, SavedTeam.GetString(), Len);
+	io_write(File, pSaveState, str_length(pSaveState));
 	io_close(File);
 }
 

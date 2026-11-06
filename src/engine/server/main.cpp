@@ -1,9 +1,15 @@
+#include <base/crashdump.h>
+#include <base/detect.h>
+#include <base/io.h>
 #include <base/logger.h>
-#include <base/system.h>
+#include <base/os.h>
+#include <base/process.h>
+#include <base/str.h>
 #include <base/windows.h>
 
 #include <engine/console.h>
 #include <engine/engine.h>
+#include <engine/http.h>
 #include <engine/map.h>
 #include <engine/server.h>
 #include <engine/server/antibot.h>
@@ -22,6 +28,8 @@
 #if defined(CONF_FAMILY_WINDOWS)
 #include <windows.h>
 #elif defined(CONF_PLATFORM_ANDROID)
+#include <base/fs.h>
+
 #include <jni.h>
 #endif
 
@@ -121,13 +129,22 @@ int main(int argc, const char **argv)
 	pFutureAssertionLogger->Set(CreateAssertionLogger(pStorage, GAME_NAME));
 
 	{
-		char aBuf[IO_MAX_PATH_LENGTH];
+		char aTimestamp[20];
+		str_timestamp(aTimestamp, sizeof(aTimestamp));
+
 		char aBufName[IO_MAX_PATH_LENGTH];
-		char aDate[64];
-		str_timestamp(aDate, sizeof(aDate));
-		str_format(aBufName, sizeof(aBufName), "dumps/" GAME_NAME "-Server_%s_crash_log_%s_%d_%s.RTP", CONF_PLATFORM_STRING, aDate, pid(), GIT_SHORTREV_HASH != nullptr ? GIT_SHORTREV_HASH : "");
-		pStorage->GetCompletePath(IStorage::TYPE_SAVE, aBufName, aBuf, sizeof(aBuf));
-		crashdump_init_if_available(aBuf);
+		str_format(aBufName, sizeof(aBufName), "dumps/%s-Server_%s_%s_%s_crash_log_%s_%d_%s.RTP",
+			GAME_NAME,
+			GAME_RELEASE_VERSION,
+			CONF_PLATFORM_STRING,
+			CONF_ARCH_STRING,
+			aTimestamp,
+			process_id(),
+			GIT_SHORTREV_HASH != nullptr ? GIT_SHORTREV_HASH : "");
+
+		char aBufPath[IO_MAX_PATH_LENGTH];
+		pStorage->GetCompletePath(IStorage::TYPE_SAVE, aBufName, aBufPath, sizeof(aBufPath));
+		crashdump_init_if_available(aBufPath);
 	}
 
 	IConsole *pConsole = CreateConsole(CFGFLAG_SERVER | CFGFLAG_ECON).release();
@@ -136,9 +153,9 @@ int main(int argc, const char **argv)
 	IConfigManager *pConfigManager = CreateConfigManager();
 	pKernel->RegisterInterface(pConfigManager);
 
-	IEngineMap *pEngineMap = CreateEngineMap();
-	pKernel->RegisterInterface(pEngineMap); // IEngineMap
-	pKernel->RegisterInterface(static_cast<IMap *>(pEngineMap), false);
+	IEngineHttp *pEngineHttp = CreateEngineHttp();
+	pKernel->RegisterInterface(pEngineHttp); // IEngineHttp
+	pKernel->RegisterInterface(static_cast<IHttp *>(pEngineHttp), false);
 
 	IEngineAntibot *pEngineAntibot = CreateEngineAntibot();
 	pKernel->RegisterInterface(pEngineAntibot); // IEngineAntibot
@@ -181,7 +198,9 @@ int main(int argc, const char **argv)
 		IOHANDLE Logfile = pStorage->OpenFile(g_Config.m_Logfile, Mode, IStorage::TYPE_SAVE_OR_ABSOLUTE);
 		if(Logfile)
 		{
-			pFutureFileLogger->Set(log_logger_file(Logfile));
+			auto pFileLogger = log_logger_file(Logfile);
+			pFileLogger->SetFilter(CLogFilter{IConsole::ToLogLevelFilter(g_Config.m_Loglevel)});
+			pFutureFileLogger->Set(std::move(pFileLogger));
 		}
 		else
 		{
@@ -211,10 +230,10 @@ int main(int argc, const char **argv)
 }
 
 #if defined(CONF_PLATFORM_ANDROID)
-#if !defined(ANDROID_PACKAGE_NAME)
-#error "ANDROID_PACKAGE_NAME must define the package name when compiling for Android (using underscores instead of dots, e.g. org_example_app)"
+#if !defined(ANDROID_PACKAGE_NAME_JNI)
+#error "ANDROID_PACKAGE_NAME_JNI must define the package name when compiling for Android (using underscores instead of dots, e.g. org_example_app)"
 #endif
-// Helpers to force macro expansion else the ANDROID_PACKAGE_NAME macro is not expanded
+// Helpers to force macro expansion else the ANDROID_PACKAGE_NAME_JNI macro is not expanded
 #define EXPAND_MACRO(x) x
 #define JNI_MAKE_NAME(PACKAGE, CLASS, FUNCTION) Java_##PACKAGE##_##CLASS##_##FUNCTION
 #define JNI_EXPORTED_FUNCTION(PACKAGE, CLASS, FUNCTION, RETURN_TYPE, ...) \
@@ -233,14 +252,14 @@ std::vector<std::string> FetchAndroidServerCommandQueue()
 	return vResult;
 }
 
-JNI_EXPORTED_FUNCTION(ANDROID_PACKAGE_NAME, NativeServer, runServer, jint, JNIEnv *pEnv, jobject Object, jstring WorkingDirectory, jobjectArray ArgumentsArray)
+JNI_EXPORTED_FUNCTION(ANDROID_PACKAGE_NAME_JNI, NativeServer, runServer, jint, JNIEnv *pEnv, jobject Object, jstring WorkingDirectory, jobjectArray ArgumentsArray)
 {
 	// Set working directory to external storage location. This is not possible
 	// in Java so we pass the intended working directory to the native code.
 	const char *pWorkingDirectory = pEnv->GetStringUTFChars(WorkingDirectory, nullptr);
-	const bool WorkingDirectoryError = fs_chdir(pWorkingDirectory) != 0;
+	const std::string WorkingDirectoryCopy = pWorkingDirectory;
 	pEnv->ReleaseStringUTFChars(WorkingDirectory, pWorkingDirectory);
-	if(WorkingDirectoryError)
+	if(fs_chdir(WorkingDirectoryCopy.c_str()) != 0)
 	{
 		return -1001;
 	}
@@ -249,13 +268,14 @@ JNI_EXPORTED_FUNCTION(ANDROID_PACKAGE_NAME, NativeServer, runServer, jint, JNIEn
 
 	std::vector<std::string> vArguments;
 	vArguments.reserve(NumArguments + 1);
-	vArguments.push_back(std::string(pWorkingDirectory) + "/" + GAME_NAME "-Server");
+	vArguments.push_back(WorkingDirectoryCopy + "/" + GAME_NAME "-Server");
 	for(jsize ArgumentIndex = 0; ArgumentIndex < NumArguments; ArgumentIndex++)
 	{
 		jstring ArgumentString = (jstring)pEnv->GetObjectArrayElement(ArgumentsArray, ArgumentIndex);
 		const char *pArgumentString = pEnv->GetStringUTFChars(ArgumentString, nullptr);
 		vArguments.emplace_back(pArgumentString);
 		pEnv->ReleaseStringUTFChars(ArgumentString, pArgumentString);
+		pEnv->DeleteLocalRef(ArgumentString);
 	}
 
 	std::vector<const char *> vpArguments;
@@ -268,7 +288,7 @@ JNI_EXPORTED_FUNCTION(ANDROID_PACKAGE_NAME, NativeServer, runServer, jint, JNIEn
 	return main(vpArguments.size(), vpArguments.data());
 }
 
-JNI_EXPORTED_FUNCTION(ANDROID_PACKAGE_NAME, NativeServer, executeCommand, void, JNIEnv *pEnv, jobject Object, jstring Command)
+JNI_EXPORTED_FUNCTION(ANDROID_PACKAGE_NAME_JNI, NativeServer, executeCommand, void, JNIEnv *pEnv, jobject Object, jstring Command)
 {
 	const char *pCommand = pEnv->GetStringUTFChars(Command, nullptr);
 	{

@@ -2,10 +2,13 @@
 /* If you are missing that file, acquire a complete release at teeworlds.com.                */
 #include "menus.h"
 
+#include <base/dbg.h>
 #include <base/log.h>
+#include <base/time.h>
 
 #include <engine/engine.h>
 #include <engine/favorites.h>
+#include <engine/font_icons.h>
 #include <engine/friends.h>
 #include <engine/gfx/image_manipulation.h>
 #include <engine/keys.h>
@@ -21,9 +24,7 @@
 #include <game/client/ui_listbox.h>
 #include <game/localization.h>
 
-using namespace FontIcons;
-
-static constexpr ColorRGBA gs_HighlightedTextColor = ColorRGBA(0.4f, 0.4f, 1.0f, 1.0f);
+static constexpr ColorRGBA HIGHLIGHTED_TEXT_COLOR = ColorRGBA(0.4f, 0.4f, 1.0f, 1.0f);
 
 static ColorRGBA PlayerBackgroundColor(bool Friend, bool Clan, bool Afk, bool InSelectedServer, bool Inside)
 {
@@ -59,46 +60,6 @@ static void FormatServerbrowserPing(char (&aBuffer)[N], const CServerInfo *pInfo
 	};
 	dbg_assert(0 <= pInfo->m_Location && pInfo->m_Location < CServerInfo::NUM_LOCS, "location out of range");
 	str_copy(aBuffer, Localize(LOCATION_NAMES[pInfo->m_Location]));
-}
-
-static ColorRGBA GetPingTextColor(int Latency)
-{
-	return color_cast<ColorRGBA>(ColorHSLA((300.0f - std::clamp(Latency, 0, 300)) / 1000.0f, 1.0f, 0.5f));
-}
-
-static ColorRGBA GetGametypeTextColor(const char *pGametype)
-{
-	ColorHSLA HslaColor;
-	if(str_comp(pGametype, "DM") == 0 || str_comp(pGametype, "TDM") == 0 || str_comp(pGametype, "CTF") == 0 || str_comp(pGametype, "LMS") == 0 || str_comp(pGametype, "LTS") == 0)
-		HslaColor = ColorHSLA(0.33f, 1.0f, 0.75f);
-	else if(str_find_nocase(pGametype, "catch"))
-		HslaColor = ColorHSLA(0.17f, 1.0f, 0.75f);
-	else if(str_find_nocase(pGametype, "dm") || str_find_nocase(pGametype, "tdm") || str_find_nocase(pGametype, "ctf") || str_find_nocase(pGametype, "lms") || str_find_nocase(pGametype, "lts"))
-	{
-		if(pGametype[0] == 'i' || pGametype[0] == 'g')
-			HslaColor = ColorHSLA(0.0f, 1.0f, 0.75f);
-		else
-			HslaColor = ColorHSLA(0.40f, 1.0f, 0.75f);
-	}
-	else if(str_find_nocase(pGametype, "f-ddrace") || str_find_nocase(pGametype, "freeze"))
-		HslaColor = ColorHSLA(0.0f, 1.0f, 0.75f);
-	else if(str_find_nocase(pGametype, "fng"))
-		HslaColor = ColorHSLA(0.83f, 1.0f, 0.75f);
-	else if(str_find_nocase(pGametype, "gores"))
-		HslaColor = ColorHSLA(0.525f, 1.0f, 0.75f);
-	else if(str_find_nocase(pGametype, "BW"))
-		HslaColor = ColorHSLA(0.05f, 1.0f, 0.75f);
-	else if(str_find_nocase(pGametype, "ddracenet") || str_find_nocase(pGametype, "ddnet") || str_find_nocase(pGametype, "0xf"))
-		HslaColor = ColorHSLA(0.58f, 1.0f, 0.75f);
-	else if(str_find_nocase(pGametype, "ddrace") || str_find_nocase(pGametype, "mkrace"))
-		HslaColor = ColorHSLA(0.75f, 1.0f, 0.75f);
-	else if(str_find_nocase(pGametype, "race") || str_find_nocase(pGametype, "fastcap"))
-		HslaColor = ColorHSLA(0.46f, 1.0f, 0.75f);
-	else if(str_find_nocase(pGametype, "s-ddr"))
-		HslaColor = ColorHSLA(1.0f, 1.0f, 0.7f);
-	else
-		HslaColor = ColorHSLA(1.0f, 1.0f, 1.0f);
-	return color_cast<ColorRGBA>(HslaColor);
 }
 
 void CMenus::RenderServerbrowserServerList(CUIRect View, bool &WasListboxItemActivated)
@@ -153,15 +114,17 @@ void CMenus::RenderServerbrowserServerList(CUIRect View, bool &WasListboxItemAct
 		NUM_UI_ELEMS,
 	};
 
+	constexpr float ClickableIconSpace = 20.0f;
+
 	static SColumn s_aCols[] = {
 		{-1, -1, "", -1, 2.0f, {0}},
 		{COL_FLAG_LOCK, -1, "", -1, 14.0f, {0}},
-		{COL_FLAG_FAV, -1, "", -1, 14.0f, {0}},
+		{COL_FLAG_FAV, IServerBrowser::SORT_FAVORITES, "", -1, ClickableIconSpace, {0}},
 		{COL_COMMUNITY, -1, "", -1, 28.0f, {0}},
 		{COL_NAME, IServerBrowser::SORT_NAME, Localizable("Name"), 0, 50.0f, {0}},
 		{COL_GAMETYPE, IServerBrowser::SORT_GAMETYPE, Localizable("Type"), 1, 50.0f, {0}},
 		{COL_MAP, IServerBrowser::SORT_MAP, Localizable("Map"), 1, 120.0f + (Headers.w - 480) / 8, {0}},
-		{COL_FRIENDS, IServerBrowser::SORT_NUMFRIENDS, "", 1, 20.0f, {0}},
+		{COL_FRIENDS, IServerBrowser::SORT_NUMFRIENDS, "", 1, ClickableIconSpace, {0}},
 		{COL_PLAYERS, IServerBrowser::SORT_NUMPLAYERS, Localizable("Players"), 1, 60.0f, {0}},
 		{-1, -1, "", 1, 4.0f, {0}},
 		{COL_PING, IServerBrowser::SORT_PING, Localizable("Ping"), 1, 40.0f, {0}},
@@ -223,7 +186,15 @@ void CMenus::RenderServerbrowserServerList(CUIRect View, bool &WasListboxItemAct
 		{
 			TextRender()->SetFontPreset(EFontPreset::ICON_FONT);
 			TextRender()->SetRenderFlags(ETextRenderFlags::TEXT_RENDER_FLAG_ONLY_ADVANCE_WIDTH | ETextRenderFlags::TEXT_RENDER_FLAG_NO_X_BEARING | ETextRenderFlags::TEXT_RENDER_FLAG_NO_Y_BEARING | ETextRenderFlags::TEXT_RENDER_FLAG_NO_PIXEL_ALIGNMENT | ETextRenderFlags::TEXT_RENDER_FLAG_NO_OVERSIZE);
-			Ui()->DoLabel(&Col.m_Rect, FONT_ICON_HEART, 14.0f, TEXTALIGN_MC);
+			Ui()->DoLabel(&Col.m_Rect, FontIcon::HEART, 14.0f, TEXTALIGN_MC);
+			TextRender()->SetRenderFlags(0);
+			TextRender()->SetFontPreset(EFontPreset::DEFAULT_FONT);
+		}
+		else if(Col.m_Id == COL_FLAG_FAV)
+		{
+			TextRender()->SetFontPreset(EFontPreset::ICON_FONT);
+			TextRender()->SetRenderFlags(ETextRenderFlags::TEXT_RENDER_FLAG_ONLY_ADVANCE_WIDTH | ETextRenderFlags::TEXT_RENDER_FLAG_NO_X_BEARING | ETextRenderFlags::TEXT_RENDER_FLAG_NO_Y_BEARING | ETextRenderFlags::TEXT_RENDER_FLAG_NO_PIXEL_ALIGNMENT | ETextRenderFlags::TEXT_RENDER_FLAG_NO_OVERSIZE);
+			Ui()->DoLabel(&Col.m_Rect, FontIcon::STAR, 14.0f, TEXTALIGN_MC);
 			TextRender()->SetRenderFlags(0);
 			TextRender()->SetFontPreset(EFontPreset::DEFAULT_FONT);
 		}
@@ -253,14 +224,14 @@ void CMenus::RenderServerbrowserServerList(CUIRect View, bool &WasListboxItemAct
 				static CButtonContainer s_StartLocalServerButton;
 				if(DoButton_Menu(&s_StartLocalServerButton, Localize("Start and connect to local server"), 0, &Button))
 				{
-					if(GameClient()->m_LocalServer.IsServerRunning())
+					const bool WasRunning = GameClient()->m_LocalServer.IsServerRunning();
+					if(WasRunning)
 					{
 						RefreshBrowserTab(true);
-						Connect("localhost");
 					}
-					else if(GameClient()->m_LocalServer.RunServer({}))
+					if(WasRunning || GameClient()->m_LocalServer.RunServer({}))
 					{
-						Connect("localhost");
+						GameClient()->m_LocalServer.Connect();
 					}
 				}
 			}
@@ -313,13 +284,16 @@ void CMenus::RenderServerbrowserServerList(CUIRect View, bool &WasListboxItemAct
 	};
 
 	std::vector<CUIElement *> &vpServerBrowserUiElements = m_avpServerBrowserUiElements[ServerBrowser()->GetCurrentType()];
+	std::vector<char> &vServerbrowserElementIds = m_vServerbrowserElementIds[ServerBrowser()->GetCurrentType()];
 	if(vpServerBrowserUiElements.size() < (size_t)NumServers)
+	{
 		vpServerBrowserUiElements.resize(NumServers, nullptr);
+		vServerbrowserElementIds.resize(NumServers);
+	}
 
 	for(int i = 0; i < NumServers; i++)
 	{
 		const CServerInfo *pItem = ServerBrowser()->SortedGet(i);
-		const CCommunity *pCommunity = ServerBrowser()->Community(pItem->m_aCommunityId);
 
 		if(vpServerBrowserUiElements[i] == nullptr)
 		{
@@ -327,14 +301,14 @@ void CMenus::RenderServerbrowserServerList(CUIRect View, bool &WasListboxItemAct
 		}
 		CUIElement *pUiElement = vpServerBrowserUiElements[i];
 
-		const CListboxItem ListItem = s_ListBox.DoNextItem(pItem, str_comp(pItem->m_aAddress, g_Config.m_UiServerAddress) == 0);
+		const CListboxItem ListItem = s_ListBox.DoNextItem(&vServerbrowserElementIds[i], str_comp(pItem->m_aAddress, g_Config.m_UiServerAddress) == 0);
 		if(ListItem.m_Selected)
 			m_SelectedIndex = i;
 
 		if(!ListItem.m_Visible)
 		{
 			// reset active item, if not visible
-			if(Ui()->CheckActiveItem(pItem))
+			if(Ui()->CheckActiveItem(&vServerbrowserElementIds[i]))
 				Ui()->SetActiveItem(nullptr);
 
 			// don't render invisible items
@@ -356,22 +330,23 @@ void CMenus::RenderServerbrowserServerList(CUIRect View, bool &WasListboxItemAct
 			{
 				if(pItem->m_Flags & SERVER_FLAG_PASSWORD)
 				{
-					RenderBrowserIcons(*pUiElement->Rect(UI_ELEM_LOCK_ICON), &Button, ColorRGBA(0.75f, 0.75f, 0.75f, 1.0f), TextRender()->DefaultTextOutlineColor(), FONT_ICON_LOCK, TEXTALIGN_MC);
+					RenderBrowserIcons(*pUiElement->Rect(UI_ELEM_LOCK_ICON), &Button, ColorRGBA(0.75f, 0.75f, 0.75f, 1.0f), TextRender()->DefaultTextOutlineColor(), FontIcon::LOCK, TEXTALIGN_MC);
 				}
 				else if(pItem->m_RequiresLogin)
 				{
-					RenderBrowserIcons(*pUiElement->Rect(UI_ELEM_KEY_ICON), &Button, ColorRGBA(0.75f, 0.75f, 0.75f, 1.0f), TextRender()->DefaultTextOutlineColor(), FONT_ICON_KEY, TEXTALIGN_MC);
+					RenderBrowserIcons(*pUiElement->Rect(UI_ELEM_KEY_ICON), &Button, ColorRGBA(0.75f, 0.75f, 0.75f, 1.0f), TextRender()->DefaultTextOutlineColor(), FontIcon::KEY, TEXTALIGN_MC);
 				}
 			}
 			else if(Id == COL_FLAG_FAV)
 			{
 				if(pItem->m_Favorite != TRISTATE::NONE)
 				{
-					RenderBrowserIcons(*pUiElement->Rect(UI_ELEM_FAVORITE_ICON), &Button, ColorRGBA(1.0f, 0.85f, 0.3f, 1.0f), TextRender()->DefaultTextOutlineColor(), FONT_ICON_STAR, TEXTALIGN_MC);
+					RenderBrowserIcons(*pUiElement->Rect(UI_ELEM_FAVORITE_ICON), &Button, ColorRGBA(1.0f, 0.85f, 0.3f, 1.0f), TextRender()->DefaultTextOutlineColor(), FontIcon::STAR, TEXTALIGN_MC);
 				}
 			}
 			else if(Id == COL_COMMUNITY)
 			{
+				const CCommunity *pCommunity = ServerBrowser()->Community(pItem->m_aCommunityId);
 				if(pCommunity != nullptr)
 				{
 					const CCommunityIcon *pIcon = m_CommunityIcons.Find(pCommunity->Id());
@@ -381,7 +356,7 @@ void CMenus::RenderServerbrowserServerList(CUIRect View, bool &WasListboxItemAct
 						Button.Margin(2.0f, &CommunityIcon);
 						m_CommunityIcons.Render(pIcon, CommunityIcon, true);
 						Ui()->DoButtonLogic(&pItem->m_aCommunityId, 0, &CommunityIcon, BUTTONFLAG_NONE);
-						GameClient()->m_Tooltips.DoToolTip(&pItem->m_aCommunityId, &CommunityIcon, pCommunity->Name());
+						Ui()->DoToolTip(&pItem->m_aCommunityId, &CommunityIcon, pCommunity->Name());
 					}
 				}
 			}
@@ -391,11 +366,12 @@ void CMenus::RenderServerbrowserServerList(CUIRect View, bool &WasListboxItemAct
 				Props.m_MaxWidth = Button.w;
 				Props.m_StopAtEnd = true;
 				Props.m_EnableWidthCheck = false;
+				Props.m_pTooltipId = &vServerbrowserElementIds[i];
 				bool Printed = false;
 				if(g_Config.m_BrFilterString[0] && (pItem->m_QuickSearchHit & IServerBrowser::QUICK_SERVERNAME))
 					Printed = PrintHighlighted(pItem->m_aName, [&](const char *pFilteredStr, const int FilterLen) {
 						Ui()->DoLabelStreamed(*pUiElement->Rect(UI_ELEM_NAME_1), &Button, pItem->m_aName, FontSize, TEXTALIGN_ML, Props, (int)(pFilteredStr - pItem->m_aName));
-						TextRender()->TextColor(gs_HighlightedTextColor);
+						TextRender()->TextColor(HIGHLIGHTED_TEXT_COLOR);
 						Ui()->DoLabelStreamed(*pUiElement->Rect(UI_ELEM_NAME_2), &Button, pFilteredStr, FontSize, TEXTALIGN_ML, Props, FilterLen, &pUiElement->Rect(UI_ELEM_NAME_1)->m_Cursor);
 						TextRender()->TextColor(TextRender()->DefaultTextColor());
 						Ui()->DoLabelStreamed(*pUiElement->Rect(UI_ELEM_NAME_3), &Button, pFilteredStr + FilterLen, FontSize, TEXTALIGN_ML, Props, -1, &pUiElement->Rect(UI_ELEM_NAME_2)->m_Cursor);
@@ -409,9 +385,10 @@ void CMenus::RenderServerbrowserServerList(CUIRect View, bool &WasListboxItemAct
 				Props.m_MaxWidth = Button.w;
 				Props.m_StopAtEnd = true;
 				Props.m_EnableWidthCheck = false;
+				Props.m_pTooltipId = &vServerbrowserElementIds[i];
 				if(g_Config.m_UiColorizeGametype)
 				{
-					TextRender()->TextColor(GetGametypeTextColor(pItem->m_aGameType));
+					TextRender()->TextColor(pItem->m_GametypeColor);
 				}
 				Ui()->DoLabelStreamed(*pUiElement->Rect(UI_ELEM_GAMETYPE), &Button, pItem->m_aGameType, FontSize, TEXTALIGN_ML, Props);
 				TextRender()->TextColor(TextRender()->DefaultTextColor());
@@ -425,7 +402,7 @@ void CMenus::RenderServerbrowserServerList(CUIRect View, bool &WasListboxItemAct
 					if(g_Config.m_BrIndicateFinished && pItem->m_HasRank == CServerInfo::RANK_RANKED)
 					{
 						Icon.Margin(2.0f, &Icon);
-						RenderBrowserIcons(*pUiElement->Rect(UI_ELEM_FINISH_ICON), &Icon, TextRender()->DefaultTextColor(), TextRender()->DefaultTextOutlineColor(), FONT_ICON_FLAG_CHECKERED, TEXTALIGN_MC);
+						RenderBrowserIcons(*pUiElement->Rect(UI_ELEM_FINISH_ICON), &Icon, TextRender()->DefaultTextColor(), TextRender()->DefaultTextOutlineColor(), FontIcon::FLAG_CHECKERED, TEXTALIGN_MC);
 					}
 				}
 
@@ -433,11 +410,12 @@ void CMenus::RenderServerbrowserServerList(CUIRect View, bool &WasListboxItemAct
 				Props.m_MaxWidth = Button.w;
 				Props.m_StopAtEnd = true;
 				Props.m_EnableWidthCheck = false;
+				Props.m_pTooltipId = &vServerbrowserElementIds[i];
 				bool Printed = false;
 				if(g_Config.m_BrFilterString[0] && (pItem->m_QuickSearchHit & IServerBrowser::QUICK_MAPNAME))
 					Printed = PrintHighlighted(pItem->m_aMap, [&](const char *pFilteredStr, const int FilterLen) {
 						Ui()->DoLabelStreamed(*pUiElement->Rect(UI_ELEM_MAP_1), &Button, pItem->m_aMap, FontSize, TEXTALIGN_ML, Props, (int)(pFilteredStr - pItem->m_aMap));
-						TextRender()->TextColor(gs_HighlightedTextColor);
+						TextRender()->TextColor(HIGHLIGHTED_TEXT_COLOR);
 						Ui()->DoLabelStreamed(*pUiElement->Rect(UI_ELEM_MAP_2), &Button, pFilteredStr, FontSize, TEXTALIGN_ML, Props, FilterLen, &pUiElement->Rect(UI_ELEM_MAP_1)->m_Cursor);
 						TextRender()->TextColor(TextRender()->DefaultTextColor());
 						Ui()->DoLabelStreamed(*pUiElement->Rect(UI_ELEM_MAP_3), &Button, pFilteredStr + FilterLen, FontSize, TEXTALIGN_ML, Props, -1, &pUiElement->Rect(UI_ELEM_MAP_2)->m_Cursor);
@@ -449,7 +427,7 @@ void CMenus::RenderServerbrowserServerList(CUIRect View, bool &WasListboxItemAct
 			{
 				if(pItem->m_FriendState != IFriends::FRIEND_NO)
 				{
-					RenderBrowserIcons(*pUiElement->Rect(UI_ELEM_FRIEND_ICON), &Button, ColorRGBA(0.94f, 0.4f, 0.4f, 1.0f), TextRender()->DefaultTextOutlineColor(), FONT_ICON_HEART, TEXTALIGN_MC);
+					RenderBrowserIcons(*pUiElement->Rect(UI_ELEM_FRIEND_ICON), &Button, ColorRGBA(0.94f, 0.4f, 0.4f, 1.0f), TextRender()->DefaultTextOutlineColor(), FontIcon::HEART, TEXTALIGN_MC);
 
 					if(pItem->m_FriendNum > 1)
 					{
@@ -465,7 +443,7 @@ void CMenus::RenderServerbrowserServerList(CUIRect View, bool &WasListboxItemAct
 				str_format(aTemp, sizeof(aTemp), "%i/%i", pItem->m_NumFilteredPlayers, ServerBrowser()->Max(*pItem));
 				if(g_Config.m_BrFilterString[0] && (pItem->m_QuickSearchHit & IServerBrowser::QUICK_PLAYER))
 				{
-					TextRender()->TextColor(gs_HighlightedTextColor);
+					TextRender()->TextColor(HIGHLIGHTED_TEXT_COLOR);
 				}
 				Ui()->DoLabelStreamed(*pUiElement->Rect(UI_ELEM_PLAYERS), &Button, aTemp, FontSize, TEXTALIGN_MR);
 				TextRender()->TextColor(TextRender()->DefaultTextColor());
@@ -476,7 +454,7 @@ void CMenus::RenderServerbrowserServerList(CUIRect View, bool &WasListboxItemAct
 				FormatServerbrowserPing(aTemp, pItem);
 				if(g_Config.m_UiColorizePing)
 				{
-					TextRender()->TextColor(GetPingTextColor(pItem->m_Latency));
+					TextRender()->TextColor(CRenderTools::GetPingTextColor(pItem->m_Latency));
 				}
 				Ui()->DoLabelStreamed(*pUiElement->Rect(UI_ELEM_PING), &Button, aTemp, FontSize, TEXTALIGN_MR);
 				TextRender()->TextColor(TextRender()->DefaultTextColor());
@@ -517,7 +495,7 @@ void CMenus::RenderServerbrowserStatusBox(CUIRect StatusBox, bool WasListboxItem
 	const float LoadingProgressionTimeDiff = s_LoadingProgressionFadeEnd - Client()->GlobalTime();
 	if(LoadingProgressionTimeDiff > 0.0f)
 	{
-		const float RefreshBarAlpha = minimum(LoadingProgressionTimeDiff, 0.8f);
+		const float RefreshBarAlpha = std::min(LoadingProgressionTimeDiff, 0.8f);
 		RefreshBar.h = 2.0f;
 		RefreshBar.w *= ServerBrowser()->LoadingProgression() / 100.0f;
 		RefreshBar.Draw(ColorRGBA(1.0f, 1.0f, 1.0f, RefreshBarAlpha), IGraphics::CORNER_NONE, 0.0f);
@@ -526,9 +504,9 @@ void CMenus::RenderServerbrowserStatusBox(CUIRect StatusBox, bool WasListboxItem
 	TextRender()->SetFontPreset(EFontPreset::ICON_FONT);
 	TextRender()->SetRenderFlags(ETextRenderFlags::TEXT_RENDER_FLAG_ONLY_ADVANCE_WIDTH | ETextRenderFlags::TEXT_RENDER_FLAG_NO_X_BEARING | ETextRenderFlags::TEXT_RENDER_FLAG_NO_Y_BEARING | ETextRenderFlags::TEXT_RENDER_FLAG_NO_PIXEL_ALIGNMENT | ETextRenderFlags::TEXT_RENDER_FLAG_NO_OVERSIZE);
 	const float SearchExcludeAddrStrMax = 130.0f;
-	const float SearchIconWidth = TextRender()->TextWidth(16.0f, FONT_ICON_MAGNIFYING_GLASS);
-	const float ExcludeIconWidth = TextRender()->TextWidth(16.0f, FONT_ICON_BAN);
-	const float ExcludeSearchIconMax = maximum(SearchIconWidth, ExcludeIconWidth);
+	const float SearchIconWidth = TextRender()->TextWidth(16.0f, FontIcon::MAGNIFYING_GLASS);
+	const float ExcludeIconWidth = TextRender()->TextWidth(16.0f, FontIcon::BAN);
+	const float ExcludeSearchIconMax = std::max(SearchIconWidth, ExcludeIconWidth);
 	TextRender()->SetRenderFlags(0);
 	TextRender()->SetFontPreset(EFontPreset::DEFAULT_FONT);
 
@@ -549,7 +527,7 @@ void CMenus::RenderServerbrowserStatusBox(CUIRect StatusBox, bool WasListboxItem
 	{
 		TextRender()->SetFontPreset(EFontPreset::ICON_FONT);
 		TextRender()->SetRenderFlags(ETextRenderFlags::TEXT_RENDER_FLAG_ONLY_ADVANCE_WIDTH | ETextRenderFlags::TEXT_RENDER_FLAG_NO_X_BEARING | ETextRenderFlags::TEXT_RENDER_FLAG_NO_Y_BEARING | ETextRenderFlags::TEXT_RENDER_FLAG_NO_PIXEL_ALIGNMENT | ETextRenderFlags::TEXT_RENDER_FLAG_NO_OVERSIZE);
-		Ui()->DoLabel(&QuickSearch, FONT_ICON_MAGNIFYING_GLASS, 16.0f, TEXTALIGN_ML);
+		Ui()->DoLabel(&QuickSearch, FontIcon::MAGNIFYING_GLASS, 16.0f, TEXTALIGN_ML);
 		TextRender()->SetRenderFlags(0);
 		TextRender()->SetFontPreset(EFontPreset::DEFAULT_FONT);
 		QuickSearch.VSplitLeft(ExcludeSearchIconMax, nullptr, &QuickSearch);
@@ -564,7 +542,7 @@ void CMenus::RenderServerbrowserStatusBox(CUIRect StatusBox, bool WasListboxItem
 		static CLineInput s_FilterInput(g_Config.m_BrFilterString, sizeof(g_Config.m_BrFilterString));
 		static char s_aTooltipText[64];
 		str_format(s_aTooltipText, sizeof(s_aTooltipText), "%s: \"solo; nameless tee; kobra 2\"", Localize("Example of usage"));
-		GameClient()->m_Tooltips.DoToolTip(&s_FilterInput, &QuickSearch, s_aTooltipText);
+		Ui()->DoToolTip(&s_FilterInput, &QuickSearch, s_aTooltipText);
 		if(!Ui()->IsPopupOpen() && Input()->KeyPress(KEY_F) && Input()->ModifierIsPressed())
 		{
 			Ui()->SetActiveItem(&s_FilterInput);
@@ -578,7 +556,7 @@ void CMenus::RenderServerbrowserStatusBox(CUIRect StatusBox, bool WasListboxItem
 	{
 		TextRender()->SetFontPreset(EFontPreset::ICON_FONT);
 		TextRender()->SetRenderFlags(ETextRenderFlags::TEXT_RENDER_FLAG_ONLY_ADVANCE_WIDTH | ETextRenderFlags::TEXT_RENDER_FLAG_NO_X_BEARING | ETextRenderFlags::TEXT_RENDER_FLAG_NO_Y_BEARING | ETextRenderFlags::TEXT_RENDER_FLAG_NO_PIXEL_ALIGNMENT | ETextRenderFlags::TEXT_RENDER_FLAG_NO_OVERSIZE);
-		Ui()->DoLabel(&QuickExclude, FONT_ICON_BAN, 16.0f, TEXTALIGN_ML);
+		Ui()->DoLabel(&QuickExclude, FontIcon::BAN, 16.0f, TEXTALIGN_ML);
 		TextRender()->SetRenderFlags(0);
 		TextRender()->SetFontPreset(EFontPreset::DEFAULT_FONT);
 		QuickExclude.VSplitLeft(ExcludeSearchIconMax, nullptr, &QuickExclude);
@@ -593,7 +571,7 @@ void CMenus::RenderServerbrowserStatusBox(CUIRect StatusBox, bool WasListboxItem
 		static CLineInput s_ExcludeInput(g_Config.m_BrExcludeString, sizeof(g_Config.m_BrExcludeString));
 		static char s_aTooltipText[64];
 		str_format(s_aTooltipText, sizeof(s_aTooltipText), "%s: \"CHN; [A]\"", Localize("Example of usage"));
-		GameClient()->m_Tooltips.DoToolTip(&s_ExcludeInput, &QuickSearch, s_aTooltipText);
+		Ui()->DoToolTip(&s_ExcludeInput, &QuickSearch, s_aTooltipText);
 		if(!Ui()->IsPopupOpen() && Input()->KeyPress(KEY_X) && Input()->ShiftIsPressed() && Input()->ModifierIsPressed())
 		{
 			Ui()->SetActiveItem(&s_ExcludeInput);
@@ -644,9 +622,9 @@ void CMenus::RenderServerbrowserStatusBox(CUIRect StatusBox, bool WasListboxItem
 			char aLabelBuf[32] = {0};
 			const auto &&RefreshLabelFunc = [this, aLabelBuf]() mutable {
 				if(ServerBrowser()->IsRefreshing() || ServerBrowser()->IsGettingServerlist())
-					str_format(aLabelBuf, sizeof(aLabelBuf), "%s%s", FONT_ICON_ARROW_ROTATE_RIGHT, FONT_ICON_ELLIPSIS);
+					str_format(aLabelBuf, sizeof(aLabelBuf), "%s%s", FontIcon::ARROW_ROTATE_RIGHT, FontIcon::ELLIPSIS);
 				else
-					str_copy(aLabelBuf, FONT_ICON_ARROW_ROTATE_RIGHT);
+					str_copy(aLabelBuf, FontIcon::ARROW_ROTATE_RIGHT);
 				return aLabelBuf;
 			};
 
@@ -663,7 +641,7 @@ void CMenus::RenderServerbrowserStatusBox(CUIRect StatusBox, bool WasListboxItem
 
 		// connect button
 		{
-			const auto &&ConnectLabelFunc = []() { return FONT_ICON_RIGHT_TO_BRACKET; };
+			const auto &&ConnectLabelFunc = []() { return FontIcon::RIGHT_TO_BRACKET; };
 
 			SMenuButtonProperties Props;
 			Props.m_UseIconFont = true;
@@ -682,11 +660,15 @@ void CMenus::Connect(const char *pAddress)
 {
 	if(Client()->State() == IClient::STATE_ONLINE && GameClient()->CurrentRaceTime() / 60 >= g_Config.m_ClConfirmDisconnectTime && g_Config.m_ClConfirmDisconnectTime >= 0)
 	{
+		// The popup is only rendered while the menus are active
+		SetActive(true);
 		str_copy(m_aNextServer, pAddress);
 		PopupConfirm(Localize("Disconnect"), Localize("Are you sure that you want to disconnect and switch to a different server?"), Localize("Yes"), Localize("No"), &CMenus::PopupConfirmSwitchServer);
 	}
 	else
+	{
 		Client()->Connect(pAddress);
+	}
 }
 
 void CMenus::PopupConfirmSwitchServer()
@@ -811,7 +793,7 @@ void CMenus::RenderServerbrowserFilters(CUIRect View)
 		CUIRect TabContents, CountriesTab, TypesTab;
 		View.HSplitTop(6.0f, nullptr, &View);
 		View.HSplitTop(19.0f, &Button, &View);
-		View.HSplitTop(minimum(4.0f * 22.0f + CScrollRegion::HEIGHT_MAGIC_FIX, View.h), &TabContents, &View);
+		View.HSplitTop(std::min(4.0f * 22.0f, View.h), &TabContents, &View);
 		Button.VSplitMid(&CountriesTab, &TypesTab);
 		TabContents.Draw(ColorActive, IGraphics::CORNER_B, 4.0f);
 
@@ -860,7 +842,7 @@ void CMenus::ResetServerbrowserFilters()
 	g_Config.m_BrFilterSpectators = 0;
 	g_Config.m_BrFilterFriends = 0;
 	g_Config.m_BrFilterCountry = 0;
-	g_Config.m_BrFilterCountryIndex = -1;
+	g_Config.m_BrFilterCountryIndex = DefaultConfig::BrFilterCountryIndex;
 	g_Config.m_BrFilterPw = 0;
 	g_Config.m_BrFilterGametype[0] = '\0';
 	g_Config.m_BrFilterGametypeStrict = 0;
@@ -896,13 +878,11 @@ void CMenus::RenderServerbrowserDDNetFilter(CUIRect View,
 {
 	vItemIds.resize(MaxItems);
 
-	vec2 ScrollOffset(0.0f, 0.0f);
 	CScrollRegionParams ScrollParams;
-	ScrollParams.m_ScrollbarWidth = 10.0f;
+	ScrollParams.m_ScrollbarThickness = 10.0f;
 	ScrollParams.m_ScrollbarMargin = 3.0f;
 	ScrollParams.m_ScrollUnit = 2.0f * ItemHeight;
-	ScrollRegion.Begin(&View, &ScrollOffset, &ScrollParams);
-	View.y += ScrollOffset.y;
+	ScrollRegion.Begin(&View, &ScrollParams);
 
 	CUIRect Row;
 	int ColumnIndex = 0;
@@ -1013,6 +993,17 @@ void CMenus::RenderServerbrowserCommunitiesFilter(CUIRect View)
 	View.Draw(ColorRGBA(0.0f, 0.0f, 0.0f, 0.15f), IGraphics::CORNER_B, 4.0f);
 
 	const int MaxEntries = ServerBrowser()->Communities().size();
+	if(MaxEntries == 0)
+	{
+		CUIRect ErrorLabel;
+		View.Margin(5.0f, &ErrorLabel);
+		SLabelProperties ErrorLabelProps;
+		ErrorLabelProps.m_MaxWidth = ErrorLabel.w;
+		ErrorLabelProps.SetColor(ColorRGBA(1.0f, 0.0f, 0.0f, 1.0f));
+		Ui()->DoLabel(&ErrorLabel, Localize("Error loading communities"), 10.0f, TEXTALIGN_MC, ErrorLabelProps);
+		return;
+	}
+
 	const int EntriesPerRow = 1;
 
 	static CScrollRegion s_ScrollRegion;
@@ -1025,19 +1016,21 @@ void CMenus::RenderServerbrowserCommunitiesFilter(CUIRect View)
 	const auto &&GetItemName = [&](int ItemIndex) {
 		return ServerBrowser()->Communities()[ItemIndex].Id();
 	};
-	const auto &&GetItemDisplayName = [&](int ItemIndex) {
-		return ServerBrowser()->Communities()[ItemIndex].Name();
-	};
 	const auto &&RenderItem = [&](int ItemIndex, CUIRect Item, const void *pItemId, bool Active) {
+		const auto &Community = ServerBrowser()->Communities()[ItemIndex];
 		const float Alpha = (Active ? 0.9f : 0.2f) + (Ui()->HotItem() == pItemId ? 0.1f : 0.0f);
 
-		CUIRect Icon, Label, FavoriteButton;
+		CUIRect Icon, NameLabel, PlayerCountIcon, PlayerCountLabel, FavoriteButton;
 		Item.VSplitRight(Item.h, &Item, &FavoriteButton);
-		Item.Margin(Spacing, &Item);
-		Item.VSplitLeft(Item.h * 2.0f, &Icon, &Label);
-		Label.VSplitLeft(Spacing, nullptr, &Label);
+		Item.HMargin(Spacing, &Item);
+		Item.VSplitLeft(Spacing, nullptr, &Item);
+		Item.VSplitRight(1.0f, &Item, nullptr);
+		Item.VSplitLeft(Item.h * 2.0f, &Icon, &NameLabel);
+		NameLabel.VSplitLeft(Spacing, nullptr, &NameLabel);
+		NameLabel.VSplitRight(8.0f, &NameLabel, &PlayerCountIcon);
+		NameLabel.VSplitRight(25.0f, &NameLabel, &PlayerCountLabel);
 
-		const char *pItemName = GetItemName(ItemIndex);
+		const char *pItemName = Community.Id();
 		const CCommunityIcon *pIcon = m_CommunityIcons.Find(pItemName);
 		if(pIcon != nullptr)
 		{
@@ -1045,7 +1038,13 @@ void CMenus::RenderServerbrowserCommunitiesFilter(CUIRect View)
 		}
 
 		TextRender()->TextColor(1.0f, 1.0f, 1.0f, Alpha);
-		Ui()->DoLabel(&Label, GetItemDisplayName(ItemIndex), Label.h * CUi::ms_FontmodHeight, TEXTALIGN_ML);
+		Ui()->DoLabel(&NameLabel, Community.Name(), NameLabel.h * CUi::ms_FontmodHeight, TEXTALIGN_ML);
+		char aNumPlayersLabel[8];
+		str_format(aNumPlayersLabel, sizeof(aNumPlayersLabel), "%d", Community.NumPlayers());
+		Ui()->DoLabel(&PlayerCountLabel, aNumPlayersLabel, 7.0f, TEXTALIGN_MR);
+		TextRender()->SetFontPreset(EFontPreset::ICON_FONT);
+		Ui()->DoLabel(&PlayerCountIcon, FontIcon::USER, 7.0f, TEXTALIGN_MC);
+		TextRender()->SetFontPreset(EFontPreset::DEFAULT_FONT);
 		TextRender()->TextColor(TextRender()->DefaultTextColor());
 
 		const bool Favorite = ServerBrowser()->FavoriteCommunitiesFilter().Filtered(pItemName);
@@ -1060,6 +1059,8 @@ void CMenus::RenderServerbrowserCommunitiesFilter(CUIRect View)
 				ServerBrowser()->FavoriteCommunitiesFilter().Add(pItemName);
 			}
 		}
+		Ui()->DoToolTip(&s_vFavoriteButtonIds[ItemIndex], &FavoriteButton,
+			Favorite ? Localize("Click to remove this community from your favorites.") : Localize("Click to add this community to your favorites."));
 	};
 
 	s_vFavoriteButtonIds.resize(MaxEntries);
@@ -1151,7 +1152,7 @@ CUi::EPopupMenuFunctionResult CMenus::PopupCountrySelection(void *pContext, CUIR
 	}
 
 	const int NewSelected = s_ListBox.DoEnd();
-	pPopupContext->m_Selection = NewSelected >= 0 ? pMenus->GameClient()->m_CountryFlags.GetByIndex(NewSelected).m_CountryCode : -1;
+	pPopupContext->m_Selection = NewSelected >= 0 ? pMenus->GameClient()->m_CountryFlags.GetByIndex(NewSelected).m_CountryCode : CountryCode::DEFAULT;
 	if(s_ListBox.WasItemSelected() || s_ListBox.WasItemActivated())
 	{
 		g_Config.m_BrFilterCountry = 1;
@@ -1243,20 +1244,26 @@ void CMenus::RenderServerbrowserInfo(CUIRect View)
 		LeftColumn.HSplitTop(15.0f, &Row, &LeftColumn);
 		Ui()->DoLabel(&Row, Localize("Game type"), FontSize, TEXTALIGN_ML);
 
+		SLabelProperties GameTypeLabelProps;
+		if(g_Config.m_UiColorizeGametype)
+		{
+			GameTypeLabelProps.SetColor(pSelectedServer->m_GametypeColor);
+		}
 		RightColumn.HSplitTop(15.0f, &Row, &RightColumn);
-		Ui()->DoLabel(&Row, pSelectedServer->m_aGameType, FontSize, TEXTALIGN_ML);
+		Ui()->DoLabel(&Row, pSelectedServer->m_aGameType, FontSize, TEXTALIGN_ML, GameTypeLabelProps);
 
 		LeftColumn.HSplitTop(15.0f, &Row, &LeftColumn);
 		Ui()->DoLabel(&Row, Localize("Ping"), FontSize, TEXTALIGN_ML);
 
+		SLabelProperties PingLabelProps;
 		if(g_Config.m_UiColorizePing)
-			TextRender()->TextColor(GetPingTextColor(pSelectedServer->m_Latency));
-		char aTemp[16];
-		FormatServerbrowserPing(aTemp, pSelectedServer);
+		{
+			PingLabelProps.SetColor(CRenderTools::GetPingTextColor(pSelectedServer->m_Latency));
+		}
+		char aPingLabel[8];
+		FormatServerbrowserPing(aPingLabel, pSelectedServer);
 		RightColumn.HSplitTop(15.0f, &Row, &RightColumn);
-		Ui()->DoLabel(&Row, aTemp, FontSize, TEXTALIGN_ML);
-		if(g_Config.m_UiColorizePing)
-			TextRender()->TextColor(TextRender()->DefaultTextColor());
+		Ui()->DoLabel(&Row, aPingLabel, FontSize, TEXTALIGN_ML, PingLabelProps);
 
 		RenderServerbrowserInfoScoreboard(Scoreboard, pSelectedServer);
 	}
@@ -1275,11 +1282,11 @@ void CMenus::RenderServerbrowserInfoScoreboard(CUIRect View, const CServerInfo *
 	s_ListBox.DoAutoSpacing(2.0f);
 	s_ListBox.SetScrollbarWidth(16.0f);
 	s_ListBox.SetScrollbarMargin(5.0f);
-	s_ListBox.DoStart(25.0f, pSelectedServer->m_NumReceivedClients, 1, 3, -1, &View, false, IGraphics::CORNER_NONE, true);
+	s_ListBox.DoStart(25.0f, (int)pSelectedServer->m_vClients.size(), 1, 3, -1, &View, false, IGraphics::CORNER_NONE, true);
 
-	for(int i = 0; i < pSelectedServer->m_NumReceivedClients; i++)
+	for(size_t i = 0; i < pSelectedServer->m_vClients.size(); i++)
 	{
-		const CServerInfo::CClient &CurrentClient = pSelectedServer->m_aClients[i];
+		const CServerInfo::CClient &CurrentClient = pSelectedServer->m_vClients[i];
 		const CListboxItem Item = s_ListBox.DoNextItem(&CurrentClient);
 		if(!Item.m_Visible)
 			continue;
@@ -1325,7 +1332,7 @@ void CMenus::RenderServerbrowserInfoScoreboard(CUIRect View, const CServerInfo *
 
 			if(Time.has_value())
 			{
-				str_time((int64_t)Time.value() * 100, TIME_HOURS, aTemp, sizeof(aTemp));
+				str_time((int64_t)Time.value() * 100, ETimeFormat::HOURS, aTemp, sizeof(aTemp));
 			}
 			else
 			{
@@ -1339,28 +1346,20 @@ void CMenus::RenderServerbrowserInfoScoreboard(CUIRect View, const CServerInfo *
 		if(CurrentClient.m_aSkin[0] != '\0')
 		{
 			const CTeeRenderInfo TeeInfo = GetTeeRenderInfo(vec2(Skin.w, Skin.h), CurrentClient.m_aSkin, CurrentClient.m_CustomSkinColors, CurrentClient.m_CustomSkinColorBody, CurrentClient.m_CustomSkinColorFeet);
-			const CAnimState *pIdleState = CAnimState::GetIdle();
-			vec2 OffsetToMid;
-			CRenderTools::GetRenderTeeOffsetToRenderedTee(pIdleState, &TeeInfo, OffsetToMid);
-			const vec2 TeeRenderPos = vec2(Skin.x + TeeInfo.m_Size / 2.0f, Skin.y + Skin.h / 2.0f + OffsetToMid.y);
-			RenderTools()->RenderTee(pIdleState, &TeeInfo, CurrentClient.m_Afk ? EMOTE_BLINK : EMOTE_NORMAL, vec2(1.0f, 0.0f), TeeRenderPos);
+			RenderTools()->RenderIdleTeeAtCenter(&TeeInfo, vec2(Skin.x + TeeInfo.m_Size / 2.0f, Skin.y + Skin.h / 2.0f), CurrentClient.m_Afk ? EMOTE_BLINK : EMOTE_NORMAL);
 			Ui()->DoButtonLogic(&CurrentClient.m_aSkin, 0, &Skin, BUTTONFLAG_NONE);
-			GameClient()->m_Tooltips.DoToolTip(&CurrentClient.m_aSkin, &Skin, CurrentClient.m_aSkin);
+			Ui()->DoToolTip(&CurrentClient.m_aSkin, &Skin, CurrentClient.m_aSkin);
 		}
 		else if(CurrentClient.m_aaSkin7[protocol7::SKINPART_BODY][0] != '\0')
 		{
 			CTeeRenderInfo TeeInfo;
-			TeeInfo.m_Size = minimum(Skin.w, Skin.h);
+			TeeInfo.m_Size = std::min(Skin.w, Skin.h);
 			for(int Part = 0; Part < protocol7::NUM_SKINPARTS; Part++)
 			{
 				GameClient()->m_Skins7.FindSkinPart(Part, CurrentClient.m_aaSkin7[Part], true)->ApplyTo(TeeInfo.m_aSixup[g_Config.m_ClDummy]);
 				GameClient()->m_Skins7.ApplyColorTo(TeeInfo.m_aSixup[g_Config.m_ClDummy], CurrentClient.m_aUseCustomSkinColor7[Part], CurrentClient.m_aCustomSkinColor7[Part], Part);
 			}
-			const CAnimState *pIdleState = CAnimState::GetIdle();
-			vec2 OffsetToMid;
-			CRenderTools::GetRenderTeeOffsetToRenderedTee(pIdleState, &TeeInfo, OffsetToMid);
-			const vec2 TeeRenderPos = vec2(Skin.x + TeeInfo.m_Size / 2.0f, Skin.y + Skin.h / 2.0f + OffsetToMid.y);
-			RenderTools()->RenderTee(pIdleState, &TeeInfo, CurrentClient.m_Afk ? EMOTE_BLINK : EMOTE_NORMAL, vec2(1.0f, 0.0f), TeeRenderPos);
+			RenderTools()->RenderIdleTeeAtCenter(&TeeInfo, vec2(Skin.x + TeeInfo.m_Size / 2.0f, Skin.y + Skin.h / 2.0f), CurrentClient.m_Afk ? EMOTE_BLINK : EMOTE_NORMAL);
 		}
 
 		// name
@@ -1374,7 +1373,7 @@ void CMenus::RenderServerbrowserInfoScoreboard(CUIRect View, const CServerInfo *
 		if(g_Config.m_BrFilterString[0])
 			Printed = PrintHighlighted(pName, [&](const char *pFilteredStr, const int FilterLen) {
 				TextRender()->TextEx(&NameCursor, pName, (int)(pFilteredStr - pName));
-				TextRender()->TextColor(gs_HighlightedTextColor);
+				TextRender()->TextColor(HIGHLIGHTED_TEXT_COLOR);
 				TextRender()->TextEx(&NameCursor, pFilteredStr, FilterLen);
 				TextRender()->TextColor(TextRender()->DefaultTextColor());
 				TextRender()->TextEx(&NameCursor, pFilteredStr + FilterLen, -1);
@@ -1408,7 +1407,7 @@ void CMenus::RenderServerbrowserInfoScoreboard(CUIRect View, const CServerInfo *
 	const int NewSelected = s_ListBox.DoEnd();
 	if(s_ListBox.WasItemSelected())
 	{
-		const CServerInfo::CClient &SelectedClient = pSelectedServer->m_aClients[NewSelected];
+		const CServerInfo::CClient &SelectedClient = pSelectedServer->m_vClients[NewSelected];
 		if(SelectedClient.m_FriendState == IFriends::FRIEND_PLAYER)
 			GameClient()->Friends()->RemoveFriend(SelectedClient.m_aName, SelectedClient.m_aClan);
 		else
@@ -1446,15 +1445,14 @@ void CMenus::RenderServerbrowserFriends(CUIRect View)
 		     return Friend.Name()[0] == '\0';
 	     });
 
-	for(int ServerIndex = 0; ServerIndex < ServerBrowser()->NumSortedServers(); ++ServerIndex)
+	for(int ServerIndex = 0; ServerIndex < ServerBrowser()->NumServers(); ++ServerIndex)
 	{
-		const CServerInfo *pEntry = ServerBrowser()->SortedGet(ServerIndex);
+		const CServerInfo *pEntry = ServerBrowser()->Get(ServerIndex);
 		if(pEntry->m_FriendState == IFriends::FRIEND_NO)
 			continue;
 
-		for(int ClientIndex = 0; ClientIndex < pEntry->m_NumClients; ++ClientIndex)
+		for(const CServerInfo::CClient &CurrentClient : pEntry->m_vClients)
 		{
-			const CServerInfo::CClient &CurrentClient = pEntry->m_aClients[ClientIndex];
 			if(CurrentClient.m_FriendState == IFriends::FRIEND_NO)
 				continue;
 
@@ -1471,14 +1469,12 @@ void CMenus::RenderServerbrowserFriends(CUIRect View)
 
 	// friends list
 	static CScrollRegion s_ScrollRegion;
-	vec2 ScrollOffset(0.0f, 0.0f);
 	CScrollRegionParams ScrollParams;
-	ScrollParams.m_ScrollbarWidth = 16.0f;
+	ScrollParams.m_ScrollbarThickness = 16.0f;
 	ScrollParams.m_ScrollbarMargin = 5.0f;
 	ScrollParams.m_ScrollUnit = 80.0f;
-	ScrollParams.m_Flags = CScrollRegionParams::FLAG_CONTENT_STATIC_WIDTH;
-	s_ScrollRegion.Begin(&List, &ScrollOffset, &ScrollParams);
-	List.y += ScrollOffset.y;
+	ScrollParams.m_ForceShowScrollbar = true;
+	s_ScrollRegion.Begin(&List, &ScrollParams);
 
 	char aBuf[256];
 	for(size_t FriendType = 0; FriendType < NUM_FRIEND_TYPES; ++FriendType)
@@ -1492,7 +1488,7 @@ void CMenus::RenderServerbrowserFriends(CUIRect View)
 		GroupIcon.Margin(2.0f, &GroupIcon);
 		TextRender()->SetFontPreset(EFontPreset::ICON_FONT);
 		TextRender()->TextColor(Ui()->HotItem() == &s_aListExtended[FriendType] ? TextRender()->DefaultTextColor() : ColorRGBA(0.6f, 0.6f, 0.6f, 1.0f));
-		Ui()->DoLabel(&GroupIcon, s_aListExtended[FriendType] ? FONT_ICON_SQUARE_MINUS : FONT_ICON_SQUARE_PLUS, GroupIcon.h * CUi::ms_FontmodHeight, TEXTALIGN_MC);
+		Ui()->DoLabel(&GroupIcon, s_aListExtended[FriendType] ? FontIcon::SQUARE_MINUS : FontIcon::SQUARE_PLUS, GroupIcon.h * CUi::ms_FontmodHeight, TEXTALIGN_MC);
 		TextRender()->TextColor(TextRender()->DefaultTextColor());
 		TextRender()->SetFontPreset(EFontPreset::DEFAULT_FONT);
 		switch(FriendType)
@@ -1539,7 +1535,7 @@ void CMenus::RenderServerbrowserFriends(CUIRect View)
 
 				if(Friend.ServerInfo())
 				{
-					GameClient()->m_Tooltips.DoToolTip(Friend.ListItemId(), &Rect, Localize("Click to select server. Double click to join your friend."));
+					Ui()->DoToolTip(Friend.ListItemId(), &Rect, Localize("Click to select server. Double click to join your friend."));
 				}
 
 				// Compare unsorted server id of the friend with the unsorted id of the currently selected server
@@ -1566,28 +1562,20 @@ void CMenus::RenderServerbrowserFriends(CUIRect View)
 				if(Friend.Skin()[0] != '\0')
 				{
 					const CTeeRenderInfo TeeInfo = GetTeeRenderInfo(vec2(Skin.w, Skin.h), Friend.Skin(), Friend.CustomSkinColors(), Friend.CustomSkinColorBody(), Friend.CustomSkinColorFeet());
-					const CAnimState *pIdleState = CAnimState::GetIdle();
-					vec2 OffsetToMid;
-					CRenderTools::GetRenderTeeOffsetToRenderedTee(pIdleState, &TeeInfo, OffsetToMid);
-					const vec2 TeeRenderPos = vec2(Skin.x + Skin.w / 2.0f, Skin.y + Skin.h * 0.55f + OffsetToMid.y);
-					RenderTools()->RenderTee(pIdleState, &TeeInfo, Friend.IsAfk() ? EMOTE_BLINK : EMOTE_NORMAL, vec2(1.0f, 0.0f), TeeRenderPos);
+					RenderTools()->RenderIdleTeeAtCenter(&TeeInfo, vec2(Skin.x + Skin.w / 2.0f, Skin.y + Skin.h * 0.55f), Friend.IsAfk() ? EMOTE_BLINK : EMOTE_NORMAL);
 					Ui()->DoButtonLogic(Friend.SkinTooltipId(), 0, &Skin, BUTTONFLAG_NONE);
-					GameClient()->m_Tooltips.DoToolTip(Friend.SkinTooltipId(), &Skin, Friend.Skin());
+					Ui()->DoToolTip(Friend.SkinTooltipId(), &Skin, Friend.Skin());
 				}
 				else if(Friend.Skin7(protocol7::SKINPART_BODY)[0] != '\0')
 				{
 					CTeeRenderInfo TeeInfo;
-					TeeInfo.m_Size = minimum(Skin.w, Skin.h);
+					TeeInfo.m_Size = std::min(Skin.w, Skin.h);
 					for(int Part = 0; Part < protocol7::NUM_SKINPARTS; Part++)
 					{
 						GameClient()->m_Skins7.FindSkinPart(Part, Friend.Skin7(Part), true)->ApplyTo(TeeInfo.m_aSixup[g_Config.m_ClDummy]);
 						GameClient()->m_Skins7.ApplyColorTo(TeeInfo.m_aSixup[g_Config.m_ClDummy], Friend.UseCustomSkinColor7(Part), Friend.CustomSkinColor7(Part), Part);
 					}
-					const CAnimState *pIdleState = CAnimState::GetIdle();
-					vec2 OffsetToMid;
-					CRenderTools::GetRenderTeeOffsetToRenderedTee(pIdleState, &TeeInfo, OffsetToMid);
-					const vec2 TeeRenderPos = vec2(Skin.x + Skin.w / 2.0f, Skin.y + Skin.h * 0.55f + OffsetToMid.y);
-					RenderTools()->RenderTee(pIdleState, &TeeInfo, Friend.IsAfk() ? EMOTE_BLINK : EMOTE_NORMAL, vec2(1.0f, 0.0f), TeeRenderPos);
+					RenderTools()->RenderIdleTeeAtCenter(&TeeInfo, vec2(Skin.x + Skin.w / 2.0f, Skin.y + Skin.h * 0.55f), Friend.IsAfk() ? EMOTE_BLINK : EMOTE_NORMAL);
 				}
 				Rect.HSplitTop(11.0f, &NameLabel, &ClanLabel);
 
@@ -1612,7 +1600,7 @@ void CMenus::RenderServerbrowserFriends(CUIRect View)
 							InfoLabel.VSplitLeft(2.0f, nullptr, &InfoLabel);
 							m_CommunityIcons.Render(pIcon, CommunityIcon, true);
 							Ui()->DoButtonLogic(Friend.CommunityTooltipId(), 0, &CommunityIcon, BUTTONFLAG_NONE);
-							GameClient()->m_Tooltips.DoToolTip(Friend.CommunityTooltipId(), &CommunityIcon, pCommunity->Name());
+							Ui()->DoToolTip(Friend.CommunityTooltipId(), &CommunityIcon, pCommunity->Name());
 						}
 					}
 
@@ -1632,7 +1620,7 @@ void CMenus::RenderServerbrowserFriends(CUIRect View)
 					TextRender()->TextColor(Ui()->HotItem() == Friend.RemoveButtonId() ? TextRender()->DefaultTextColor() : ColorRGBA(0.4f, 0.4f, 0.4f, 1.0f));
 					TextRender()->SetFontPreset(EFontPreset::ICON_FONT);
 					TextRender()->SetRenderFlags(ETextRenderFlags::TEXT_RENDER_FLAG_ONLY_ADVANCE_WIDTH | ETextRenderFlags::TEXT_RENDER_FLAG_NO_X_BEARING | ETextRenderFlags::TEXT_RENDER_FLAG_NO_Y_BEARING | ETextRenderFlags::TEXT_RENDER_FLAG_NO_OVERSIZE);
-					Ui()->DoLabel(&RemoveButton, FONT_ICON_TRASH, RemoveButton.h * CUi::ms_FontmodHeight, TEXTALIGN_MC);
+					Ui()->DoLabel(&RemoveButton, FontIcon::TRASH, RemoveButton.h * CUi::ms_FontmodHeight, TEXTALIGN_MC);
 					TextRender()->SetRenderFlags(0);
 					TextRender()->SetFontPreset(EFontPreset::DEFAULT_FONT);
 					TextRender()->TextColor(TextRender()->DefaultTextColor());
@@ -1641,7 +1629,7 @@ void CMenus::RenderServerbrowserFriends(CUIRect View)
 						m_pRemoveFriend = &Friend;
 						ButtonResult = 0;
 					}
-					GameClient()->m_Tooltips.DoToolTip(Friend.RemoveButtonId(), &RemoveButton, Friend.FriendState() == IFriends::FRIEND_PLAYER ? Localize("Click to remove this player from your friends list.") : Localize("Click to remove this clan from your friends list."));
+					Ui()->DoToolTip(Friend.RemoveButtonId(), &RemoveButton, Friend.FriendState() == IFriends::FRIEND_PLAYER ? Localize("Click to remove this player from your friends list.") : Localize("Click to remove this clan from your friends list."));
 				}
 
 				// handle click and double click on item
@@ -1769,25 +1757,25 @@ void CMenus::RenderServerbrowserTabBar(CUIRect TabBar)
 	TextRender()->SetRenderFlags(ETextRenderFlags::TEXT_RENDER_FLAG_ONLY_ADVANCE_WIDTH | ETextRenderFlags::TEXT_RENDER_FLAG_NO_X_BEARING | ETextRenderFlags::TEXT_RENDER_FLAG_NO_Y_BEARING | ETextRenderFlags::TEXT_RENDER_FLAG_NO_PIXEL_ALIGNMENT | ETextRenderFlags::TEXT_RENDER_FLAG_NO_OVERSIZE);
 
 	static CButtonContainer s_FilterTabButton;
-	if(DoButton_MenuTab(&s_FilterTabButton, FONT_ICON_LIST_UL, g_Config.m_UiToolboxPage == UI_TOOLBOX_PAGE_FILTERS, &FilterTabButton, IGraphics::CORNER_T, &m_aAnimatorsSmallPage[SMALL_TAB_BROWSER_FILTER], &ColorInactive, &ColorActive))
+	if(DoButton_MenuTab(&s_FilterTabButton, FontIcon::LIST_UL, g_Config.m_UiToolboxPage == UI_TOOLBOX_PAGE_FILTERS, &FilterTabButton, IGraphics::CORNER_T, &m_aAnimatorsSmallPage[SMALL_TAB_BROWSER_FILTER], &ColorInactive, &ColorActive))
 	{
 		g_Config.m_UiToolboxPage = UI_TOOLBOX_PAGE_FILTERS;
 	}
-	GameClient()->m_Tooltips.DoToolTip(&s_FilterTabButton, &FilterTabButton, Localize("Server filter"));
+	Ui()->DoToolTip(&s_FilterTabButton, &FilterTabButton, Localize("Server filter"));
 
 	static CButtonContainer s_InfoTabButton;
-	if(DoButton_MenuTab(&s_InfoTabButton, FONT_ICON_INFO, g_Config.m_UiToolboxPage == UI_TOOLBOX_PAGE_INFO, &InfoTabButton, IGraphics::CORNER_T, &m_aAnimatorsSmallPage[SMALL_TAB_BROWSER_INFO], &ColorInactive, &ColorActive))
+	if(DoButton_MenuTab(&s_InfoTabButton, FontIcon::INFO, g_Config.m_UiToolboxPage == UI_TOOLBOX_PAGE_INFO, &InfoTabButton, IGraphics::CORNER_T, &m_aAnimatorsSmallPage[SMALL_TAB_BROWSER_INFO], &ColorInactive, &ColorActive))
 	{
 		g_Config.m_UiToolboxPage = UI_TOOLBOX_PAGE_INFO;
 	}
-	GameClient()->m_Tooltips.DoToolTip(&s_InfoTabButton, &InfoTabButton, Localize("Server info"));
+	Ui()->DoToolTip(&s_InfoTabButton, &InfoTabButton, Localize("Server info"));
 
 	static CButtonContainer s_FriendsTabButton;
-	if(DoButton_MenuTab(&s_FriendsTabButton, FONT_ICON_HEART, g_Config.m_UiToolboxPage == UI_TOOLBOX_PAGE_FRIENDS, &FriendsTabButton, IGraphics::CORNER_T, &m_aAnimatorsSmallPage[SMALL_TAB_BROWSER_FRIENDS], &ColorInactive, &ColorActive))
+	if(DoButton_MenuTab(&s_FriendsTabButton, FontIcon::HEART, g_Config.m_UiToolboxPage == UI_TOOLBOX_PAGE_FRIENDS, &FriendsTabButton, IGraphics::CORNER_T, &m_aAnimatorsSmallPage[SMALL_TAB_BROWSER_FRIENDS], &ColorInactive, &ColorActive))
 	{
 		g_Config.m_UiToolboxPage = UI_TOOLBOX_PAGE_FRIENDS;
 	}
-	GameClient()->m_Tooltips.DoToolTip(&s_FriendsTabButton, &FriendsTabButton, Localize("Friends"));
+	Ui()->DoToolTip(&s_FriendsTabButton, &FriendsTabButton, Localize("Friends"));
 
 	TextRender()->SetRenderFlags(0);
 	TextRender()->SetFontPreset(EFontPreset::DEFAULT_FONT);
@@ -1863,10 +1851,10 @@ void CMenus::RenderServerbrowser(CUIRect MainView)
 	MainView.VSplitRight(205.0f, &ServerList, &ToolBox);
 	ServerList.VSplitRight(5.0f, &ServerList, nullptr);
 
-	if((g_Config.m_UiPage == PAGE_INTERNET || g_Config.m_UiPage == PAGE_FAVORITES) && !ServerBrowser()->Communities().empty())
+	if(g_Config.m_UiPage == PAGE_INTERNET || g_Config.m_UiPage == PAGE_FAVORITES)
 	{
 		CUIRect CommunityFilter;
-		ToolBox.HSplitTop(19.0f + 4.0f * 17.0f + CScrollRegion::HEIGHT_MAGIC_FIX, &CommunityFilter, &ToolBox);
+		ToolBox.HSplitTop(19.0f + 4.0f * 17.0f, &CommunityFilter, &ToolBox);
 		ToolBox.HSplitTop(8.0f, nullptr, &ToolBox);
 		RenderServerbrowserCommunitiesFilter(CommunityFilter);
 	}
@@ -1922,7 +1910,7 @@ CTeeRenderInfo CMenus::GetTeeRenderInfo(vec2 Size, const char *pSkinName, bool C
 	CTeeRenderInfo TeeInfo;
 	TeeInfo.Apply(GameClient()->m_Skins.Find(pSkinName));
 	TeeInfo.ApplyColors(CustomSkinColors, CustomSkinColorBody, CustomSkinColorFeet);
-	TeeInfo.m_Size = minimum(Size.x, Size.y);
+	TeeInfo.m_Size = std::min(Size.x, Size.y);
 	return TeeInfo;
 }
 

@@ -133,8 +133,10 @@ public:
 	// game
 	virtual void DoWarmup(int Seconds);
 
-	void StartRound();
-	void EndRound();
+	void SetGamePaused(bool Paused);
+	bool IsGamePaused() const;
+	virtual void StartRound();
+	virtual void EndRound();
 	void ChangeMap(const char *pToMap);
 
 	/*
@@ -200,7 +202,7 @@ public:
 	// spawn
 	virtual bool CanSpawn(int Team, vec2 *pOutPos, int ClientId);
 
-	virtual void DoTeamChange(class CPlayer *pPlayer, int Team, bool DoChatMsg = true);
+	virtual void DoTeamChange(class CPlayer *pPlayer, int Team, bool DoChatMsg);
 
 	int TileFlagsToPickupFlags(int TileFlags) const;
 
@@ -215,6 +217,8 @@ public:
 	CClientMask GetMaskForPlayerWorldEvent(int Asker, int ExceptID = -1);
 
 	bool IsTeamPlay() const { return m_GameFlags & GAMEFLAG_TEAMS; }
+	int GameFlags() const { return m_GameFlags; }
+
 	// DDRace
 
 	std::optional<float> m_CurrentRecord;

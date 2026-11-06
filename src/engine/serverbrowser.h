@@ -5,8 +5,9 @@
 
 #include "kernel.h"
 
+#include <base/color.h>
 #include <base/hash.h>
-#include <base/system.h>
+#include <base/str.h>
 
 #include <engine/map.h>
 #include <engine/shared/protocol.h>
@@ -69,6 +70,9 @@ public:
 	public:
 		char m_aName[MAX_NAME_LENGTH];
 		char m_aClan[MAX_CLAN_LENGTH];
+		/**
+		 * Country code in ISO 3166-1 numeric.
+		 */
 		int m_Country;
 		int m_Score;
 		bool m_Player;
@@ -89,7 +93,6 @@ public:
 
 	int m_Type;
 	uint64_t m_ReceivedPackets;
-	int m_NumReceivedClients;
 
 	int m_NumAddresses;
 	NETADDR m_aAddresses[MAX_SERVER_ADDRESSES];
@@ -114,18 +117,20 @@ public:
 	int m_Latency; // in ms
 	ERankState m_HasRank;
 	char m_aGameType[16];
+	ColorRGBA m_GametypeColor;
 	char m_aName[64];
 	char m_aMap[MAX_MAP_LENGTH];
 	int m_MapCrc;
 	int m_MapSize;
 	char m_aVersion[32];
 	char m_aAddress[MAX_SERVER_ADDRESSES * NETADDR_MAXSTRSIZE];
-	CClient m_aClients[SERVERINFO_MAX_CLIENTS];
+	std::vector<CClient> m_vClients;
 	int m_NumFilteredPlayers;
 	bool m_RequiresLogin;
 
 	static int EstimateLatency(int Loc1, int Loc2);
 	static bool ParseLocation(int *pResult, const char *pString);
+	static ColorRGBA GametypeColor(const char *pGametype);
 };
 
 class CCommunityCountryServer
@@ -149,6 +154,9 @@ class CCommunityCountry
 	friend class CServerBrowser;
 
 	char m_aName[CServerInfo::MAX_COMMUNITY_COUNTRY_LENGTH];
+	/**
+	 * Country code in ISO 3166-1 numeric.
+	 */
 	int m_FlagId;
 	std::vector<CCommunityCountryServer> m_vServers;
 
@@ -218,6 +226,7 @@ class CCommunity
 	char m_aIconUrl[128];
 	std::vector<CCommunityCountry> m_vCountries;
 	std::vector<CCommunityType> m_vTypes;
+	int m_NumPlayers = 0;
 	bool m_HasFinishes = false;
 	std::unordered_set<CCommunityMap, CCommunityMap::SHash> m_FinishedMaps;
 
@@ -240,6 +249,7 @@ public:
 	bool HasType(const char *pTypeName) const;
 	bool HasRanks() const { return m_HasFinishes; }
 	CServerInfo::ERankState HasRank(const char *pMap) const;
+	int NumPlayers() const { return m_NumPlayers; }
 };
 
 class IFilterList
@@ -273,10 +283,11 @@ public:
 	/* Constants: Server Browser Sorting
 		SORT_NAME - Sort by name.
 		SORT_PING - Sort by ping.
-		SORT_MAP - Sort by map
+		SORT_MAP - Sort by map.
 		SORT_GAMETYPE - Sort by game type. DM, TDM etc.
 		SORT_NUMPLAYERS - Sort after how many players there are on the server.
 		SORT_NUMFRIENDS - Sort after how many friends there are on the server.
+		SORT_FAVORITES - Sort by favorite status, number of players and then ping.
 	*/
 	enum
 	{
@@ -286,6 +297,7 @@ public:
 		SORT_GAMETYPE,
 		SORT_NUMPLAYERS,
 		SORT_NUMFRIENDS,
+		SORT_FAVORITES,
 	};
 
 	enum
@@ -346,6 +358,7 @@ public:
 	virtual int LoadingProgression() const = 0;
 
 	virtual int NumServers() const = 0;
+	virtual const CServerInfo *Get(int Index) const = 0;
 
 	virtual int Players(const CServerInfo &Item) const = 0;
 	virtual int Max(const CServerInfo &Item) const = 0;

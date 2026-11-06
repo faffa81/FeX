@@ -5,7 +5,10 @@
 
 #include "eventhandler.h"
 #include "gameworld.h"
+#include "playermapping.h"
 #include "teehistorian.h"
+
+#include <base/types.h>
 
 #include <engine/console.h>
 #include <engine/server.h>
@@ -19,6 +22,7 @@
 
 #include <map>
 #include <memory>
+#include <optional>
 #include <string>
 
 /*
@@ -50,12 +54,15 @@ class CHeap;
 class CPlayer;
 class CScore;
 class CUnpacker;
+class CRconRole;
 class IAntibot;
 class IGameController;
+class IMap;
 class IEngine;
 class IStorage;
 struct CAntibotRoundData;
 struct CScoreRandomMapResult;
+struct CScorePlayerResult;
 
 struct CSnapContext
 {
@@ -66,7 +73,7 @@ struct CSnapContext
 
 	int GetClientVersion() const { return m_ClientVersion; }
 	bool IsSixup() const { return m_Sixup; }
-	bool ClientId() const { return m_ClientId; }
+	int ClientId() const { return m_ClientId; }
 
 private:
 	int m_ClientVersion;
@@ -113,6 +120,7 @@ class CGameContext : public IGameServer
 	IEngine *m_pEngine;
 	IStorage *m_pStorage;
 	IAntibot *m_pAntibot;
+	std::unique_ptr<IMap> m_pMap;
 	CLayers m_Layers;
 	CCollision m_Collision;
 	protocol7::CNetObjHandler m_NetObjHandler7;
@@ -129,6 +137,7 @@ class CGameContext : public IGameServer
 
 	bool m_Resetting;
 
+	static std::optional<std::vector<int>> ClientsForVictim(int ClientId, const char *pVictim, void *pUser);
 	static void CommandCallback(int ClientId, int FlagMask, const char *pCmd, IConsole::IResult *pResult, void *pUser);
 	static void TeeHistorianWrite(const void *pData, int DataSize, void *pUser);
 
@@ -153,7 +162,6 @@ class CGameContext : public IGameServer
 	static void ConBroadcast(IConsole::IResult *pResult, void *pUserData);
 	static void ConSay(IConsole::IResult *pResult, void *pUserData);
 	static void ConSetTeam(IConsole::IResult *pResult, void *pUserData);
-	static void ConSetTeamAll(IConsole::IResult *pResult, void *pUserData);
 	static void ConHotReload(IConsole::IResult *pResult, void *pUserData);
 	static void ConAddVote(IConsole::IResult *pResult, void *pUserData);
 	static void ConRemoveVote(IConsole::IResult *pResult, void *pUserData);
@@ -169,18 +177,21 @@ class CGameContext : public IGameServer
 	static void ConchainSpecialMotdupdate(IConsole::IResult *pResult, void *pUserData, IConsole::FCommandCallback pfnCallback, void *pCallbackUserData);
 	static void ConchainSettingUpdate(IConsole::IResult *pResult, void *pUserData, IConsole::FCommandCallback pfnCallback, void *pCallbackUserData);
 	static void ConchainPracticeByDefaultUpdate(IConsole::IResult *pResult, void *pUserData, IConsole::FCommandCallback pfnCallback, void *pCallbackUserData);
+	static void ConchainTeleOthersAuthLevel(IConsole::IResult *pResult, void *pUserData, IConsole::FCommandCallback pfnCallback, void *pCallbackUserData);
 	static void ConDumpLog(IConsole::IResult *pResult, void *pUserData);
 
 	void AddVote(const char *pDescription, const char *pCommand);
 	static int MapScan(const char *pName, int IsDir, int DirType, void *pUserData);
 
-	struct CPersistentData
+	class CPersistentData
 	{
+	public:
 		CUuid m_PrevGameUuid;
 	};
 
-	struct CPersistentClientData
+	class CPersistentClientData
 	{
+	public:
 		bool m_IsSpectator;
 		bool m_IsAfk;
 		int m_LastWhisperTo;
@@ -193,6 +204,8 @@ public:
 	IConsole *Console() { return m_pConsole; }
 	IEngine *Engine() { return m_pEngine; }
 	IStorage *Storage() { return m_pStorage; }
+	IMap *Map() override { return m_pMap.get(); }
+	const IMap *Map() const override { return m_pMap.get(); }
 	CCollision *Collision() { return &m_Collision; }
 	CTuningParams *GlobalTuning() { return &m_aTuningList[0]; }
 	CTuningParams *TuningList() { return m_aTuningList; }
@@ -222,10 +235,15 @@ public:
 
 	IGameController *m_pController;
 	CGameWorld m_World;
+	CPlayerMapping m_PlayerMapping;
 
 	// helper functions
 	CCharacter *GetPlayerChar(int ClientId);
 	const CCharacter *GetPlayerChar(int ClientId) const;
+	const CPlayer *FindPlayerByName(const char *pName) const;
+	// Returns `nullptr` if no player is found.
+	CPlayer *FindPlayerByName(const char *pName);
+	std::optional<int> FindClientIdByName(const char *pName) const;
 	bool EmulateBug(int Bug) const;
 	std::vector<SSwitchers> &Switchers() { return m_World.m_Core.m_vSwitchers; }
 
@@ -282,8 +300,8 @@ public:
 	void CreateSoundGlobal(int Sound, int Target = -1) const;
 
 	void SnapSwitchers(int SnappingClient);
-	bool SnapLaserObject(const CSnapContext &Context, int SnapId, const vec2 &To, const vec2 &From, int StartTick, int Owner = -1, int LaserType = -1, int Subtype = -1, int SwitchNumber = -1) const;
-	bool SnapPickup(const CSnapContext &Context, int SnapId, const vec2 &Pos, int Type, int SubType, int SwitchNumber, int Flags) const;
+	void SnapLaserObject(const CSnapContext &Context, int SnapId, const vec2 &To, const vec2 &From, int StartTick, int Owner = -1, int LaserType = -1, int Subtype = -1, int SwitchNumber = -1) const;
+	void SnapPickup(const CSnapContext &Context, int SnapId, const vec2 &Pos, int Type, int SubType, int SwitchNumber, int Flags) const;
 
 	enum
 	{
@@ -302,17 +320,26 @@ public:
 	void SendMotd(int ClientId) const;
 	void SendSettings(int ClientId) const;
 	void SendServerAlert(const char *pMessage);
-	void SendModeratorAlert(const char *pMessage, int ToClientId);
+	void SendModeratorAlert(int ToClientId, const char *pMessage);
 	void SendBroadcast(const char *pText, int ClientId, bool IsImportant = true);
+
+	/**
+	 * The 0.7 protocol does not support renaming connected clients (or changing clan/country).
+	 * But the 0.6 protocol does allow that. And the server supports both.
+	 * So when a 0.6 client renames we update the state for 0.7 clients
+	 * by reconnecting the renamed client. This is abstracted away by this method.
+	 * During the reconnect also other properties than name are being resent and potentially
+	 * updated. Those are: name, country, clan, team and skin
+	 *
+	 * @param ClientId This is the id of the client that will be updated. Not the id that will receive the message. The message gets broadcasted to all 0.7 clients.
+	 */
+	void SendRename7(int ClientId);
 	void SendSkinChange7(int ClientId);
 
 	void List(int ClientId, const char *pFilter);
 
-	//
-	void CheckPureTuning();
 	void SendTuningParams(int ClientId, int Zone = 0);
 
-	const CVoteOptionServer *GetVoteOption(int Index) const;
 	void ProgressVoteOptions(int ClientId);
 
 	//
@@ -327,10 +354,8 @@ public:
 	void OnShutdown(void *pPersistentData) override;
 
 	void OnTick() override;
-	void OnSnap(int ClientId, bool GlobalSnap) override;
+	void OnSnap(int ClientId, bool GlobalSnap, bool RecordingDemo) override;
 	void OnPostGlobalSnap() override;
-
-	void UpdatePlayerMaps();
 
 	void *PreProcessMsg(int *pMsgId, CUnpacker *pUnpacker, int ClientId);
 	void CensorMessage(char *pCensoredMessage, const char *pMessage, int Size);
@@ -344,6 +369,7 @@ public:
 	void OnShowOthersNetMessage(const CNetMsg_Cl_ShowOthers *pMsg, int ClientId);
 	void OnShowDistanceNetMessage(const CNetMsg_Cl_ShowDistance *pMsg, int ClientId);
 	void OnCameraInfoNetMessage(const CNetMsg_Cl_CameraInfo *pMsg, int ClientId);
+	void OnPracticeTeleportNetMessage(const CNetMsg_Cl_PracticeTeleport *pMsg, int ClientId);
 	void OnSetSpectatorModeNetMessage(const CNetMsg_Cl_SetSpectatorMode *pMsg, int ClientId);
 	void OnChangeInfoNetMessage(const CNetMsg_Cl_ChangeInfo *pMsg, int ClientId);
 	void OnEmoticonNetMessage(const CNetMsg_Cl_Emoticon *pMsg, int ClientId);
@@ -355,6 +381,7 @@ public:
 	void OnClientConnected(int ClientId, void *pData) override;
 	void OnClientEnter(int ClientId) override;
 	void OnClientDrop(int ClientId, const char *pReason) override;
+	void OnClientInfoChange(int ClientId) override;
 	void OnClientPrepareInput(int ClientId, void *pInput) override;
 	void OnClientDirectInput(int ClientId, const void *pInput) override;
 	void OnClientPredictedInput(int ClientId, const void *pInput) override;
@@ -369,7 +396,7 @@ public:
 	void TeehistorianRecordPlayerName(int ClientId, const char *pName) override;
 	void TeehistorianRecordPlayerFinish(int ClientId, int TimeTicks) override;
 	void TeehistorianRecordTeamFinish(int TeamId, int TimeTicks) override;
-	void TeehistorianRecordAuthLogin(int ClientId, int Level, const char *pAuthName) override;
+	void TeehistorianRecordAuthLogin(int ClientId, const char *pRoleName, const char *pAuthName) override;
 
 	bool IsClientReady(int ClientId) const override;
 	bool IsClientPlayer(int ClientId) const override;
@@ -380,6 +407,7 @@ public:
 
 	CUuid GameUuid() const override;
 	const char *GameType() const override;
+	char m_aVersionString[32];
 	const char *Version() const override;
 	const char *NetVersion() const override;
 
@@ -410,6 +438,10 @@ public:
 
 	std::shared_ptr<CScoreRandomMapResult> m_SqlRandomMapResult;
 
+	// cached map info from database
+	std::shared_ptr<CScorePlayerResult> m_pLoadMapInfoResult;
+	char m_aMapInfoMessage[512];
+
 private:
 	// starting 1 to make 0 the special value "no client id"
 	uint32_t m_NextUniqueClientId = 1;
@@ -427,7 +459,7 @@ private:
 	static void ConSolo(IConsole::IResult *pResult, void *pUserData);
 	static void ConUnSolo(IConsole::IResult *pResult, void *pUserData);
 	static void ConFreeze(IConsole::IResult *pResult, void *pUserData);
-	static void ConUnFreeze(IConsole::IResult *pResult, void *pUserData);
+	static void ConUnfreeze(IConsole::IResult *pResult, void *pUserData);
 	static void ConDeep(IConsole::IResult *pResult, void *pUserData);
 	static void ConUnDeep(IConsole::IResult *pResult, void *pUserData);
 	static void ConLiveFreeze(IConsole::IResult *pResult, void *pUserData);
@@ -447,6 +479,7 @@ private:
 	static void ConUnLaser(IConsole::IResult *pResult, void *pUserData);
 	static void ConUnJetpack(IConsole::IResult *pResult, void *pUserData);
 	static void ConUnEndlessJump(IConsole::IResult *pResult, void *pUserData);
+	static void ConSetSwitch(IConsole::IResult *pResult, void *pUserData);
 	static void ConUnWeapons(IConsole::IResult *pResult, void *pUserData);
 	static void ConAddWeapon(IConsole::IResult *pResult, void *pUserData);
 	static void ConRemoveWeapon(IConsole::IResult *pResult, void *pUserData);
@@ -462,9 +495,9 @@ private:
 	static void ConToTeleporter(IConsole::IResult *pResult, void *pUserData);
 	static void ConToCheckTeleporter(IConsole::IResult *pResult, void *pUserData);
 	void Teleport(CCharacter *pChr, vec2 Pos);
+	void PracticeTeleport(CCharacter *pChr, vec2 Pos);
 	static void ConTeleport(IConsole::IResult *pResult, void *pUserData);
 
-	static void ConCredits(IConsole::IResult *pResult, void *pUserData);
 	static void ConInfo(IConsole::IResult *pResult, void *pUserData);
 	static void ConHelp(IConsole::IResult *pResult, void *pUserData);
 	static void ConSettings(IConsole::IResult *pResult, void *pUserData);
@@ -548,6 +581,7 @@ private:
 	static void ConPracticeUnNinja(IConsole::IResult *pResult, void *pUserData);
 	static void ConPracticeEndlessHook(IConsole::IResult *pResult, void *pUserData);
 	static void ConPracticeUnEndlessHook(IConsole::IResult *pResult, void *pUserData);
+	static void ConPracticeSetSwitch(IConsole::IResult *pResult, void *pUserData);
 	static void ConPracticeToggleInvincible(IConsole::IResult *pResult, void *pUserData);
 	static void ConPracticeToggleCollision(IConsole::IResult *pResult, void *pUserData);
 	static void ConPracticeToggleHookCollision(IConsole::IResult *pResult, void *pUserData);
@@ -589,6 +623,7 @@ private:
 	static void ConVoteMutes(IConsole::IResult *pResult, void *pUserData);
 
 	void Whisper(int ClientId, char *pStr);
+	int WhisperRecordFlag(int ClientId) const;
 	void WhisperId(int ClientId, int VictimId, const char *pMessage);
 	void Converse(int ClientId, char *pStr);
 	bool IsVersionBanned(int Version);
@@ -637,7 +672,12 @@ public:
 	void SendRecord(int ClientId);
 	void SendFinish(int ClientId, float Time, std::optional<float> PreviousBestTime);
 	void SendSaveCode(int Team, int TeamSize, int State, const char *pError, const char *pSaveRequester, const char *pServerName, const char *pGeneratedCode, const char *pCode);
-	void OnSetAuthed(int ClientId, int Level) override;
+	// `pRole` being `nullptr` signifies logout.
+	void OnSetAuthed(int ClientId, CRconRole *pRole) override;
+	void ReinitPlayerMap(int ClientId, bool Timeout) override;
+	void OnClientRejoin(int ClientId) override;
+
+	void SendStartMessages(int ClientId);
 
 	void ResetTuning();
 };

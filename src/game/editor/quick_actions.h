@@ -9,6 +9,35 @@
 #define DEFAULT_BTN []() -> int { return -1; }
 
 REGISTER_QUICK_ACTION(
+	ShowHelp,
+	"Show help",
+	[&]() { ShowHelp(); },
+	ALWAYS_FALSE,
+	ALWAYS_FALSE,
+	DEFAULT_BTN,
+	"[F1] Open the DDNet Wiki page for the map editor in a web browser.")
+REGISTER_QUICK_ACTION(
+	Exit,
+	"Exit",
+	[&]() { Exit(); },
+	ALWAYS_FALSE,
+	ALWAYS_FALSE,
+	DEFAULT_BTN,
+	"[Escape] Exit from the editor.")
+REGISTER_QUICK_ACTION(
+	BrushPicker,
+	"Brush picker",
+	[&]() { m_ShowPickerToggle = !m_ShowPickerToggle; },
+	[&]() -> bool {
+		return m_Mode != MODE_LAYERS ||
+		       Map()->m_vSelectedLayers.size() != 1 ||
+		       Map()->SelectedLayer(0) == nullptr ||
+		       (Map()->SelectedLayer(0)->m_Type != LAYERTYPE_TILES && Map()->SelectedLayer(0)->m_Type != LAYERTYPE_QUADS);
+	},
+	[&]() -> bool { return m_ShowPickerToggle; },
+	DEFAULT_BTN,
+	"[Ctrl+Space, Hold Space] Toggle brush picker.")
+REGISTER_QUICK_ACTION(
 	ToggleGrid,
 	"Toggle grid",
 	[&]() { MapView()->MapGrid()->Toggle(); },
@@ -139,7 +168,7 @@ REGISTER_QUICK_ACTION(
 REGISTER_QUICK_ACTION(
 	ZoomOut,
 	"Zoom out",
-	[&]() { MapView()->Zoom()->ChangeValue(50.0f); },
+	[&]() { MapView()->Zoom()->ScaleValue(1.331f); },
 	ALWAYS_FALSE,
 	ALWAYS_FALSE,
 	DEFAULT_BTN,
@@ -147,7 +176,7 @@ REGISTER_QUICK_ACTION(
 REGISTER_QUICK_ACTION(
 	ZoomIn,
 	"Zoom in",
-	[&]() { MapView()->Zoom()->ChangeValue(-50.0f); },
+	[&]() { MapView()->Zoom()->ScaleValue(1.0f / 1.331f); },
 	ALWAYS_FALSE,
 	ALWAYS_FALSE,
 	DEFAULT_BTN,
@@ -160,6 +189,14 @@ REGISTER_QUICK_ACTION(
 	ALWAYS_FALSE,
 	DEFAULT_BTN,
 	"[Home] Restore map focus.")
+REGISTER_QUICK_ACTION(
+	GotoPosition,
+	"Goto position",
+	[&]() { GotoPosition(); },
+	ALWAYS_FALSE,
+	ALWAYS_FALSE,
+	DEFAULT_BTN,
+	"Go to a specified coordinate point on the map.")
 REGISTER_QUICK_ACTION(
 	Proof,
 	"Proof",
@@ -174,7 +211,7 @@ REGISTER_QUICK_ACTION(
 	AddSwitchLayer,
 	"Add switch layer",
 	[&]() { AddSwitchLayer(); },
-	[&]() -> bool { return !GetSelectedGroup()->m_GameGroup || Map()->m_pSwitchLayer; },
+	[&]() -> bool { return !Map()->SelectedGroup()->m_GameGroup || Map()->m_pSwitchLayer; },
 	ALWAYS_FALSE,
 	DEFAULT_BTN,
 	"Create a new switch layer.")
@@ -182,7 +219,7 @@ REGISTER_QUICK_ACTION(
 	AddTuneLayer,
 	"Add tune layer",
 	[&]() { AddTuneLayer(); },
-	[&]() -> bool { return !GetSelectedGroup()->m_GameGroup || Map()->m_pTuneLayer; },
+	[&]() -> bool { return !Map()->SelectedGroup()->m_GameGroup || Map()->m_pTuneLayer; },
 	ALWAYS_FALSE,
 	DEFAULT_BTN,
 	"Create a new tuning layer.")
@@ -190,7 +227,7 @@ REGISTER_QUICK_ACTION(
 	AddSpeedupLayer,
 	"Add speedup layer",
 	[&]() { AddSpeedupLayer(); },
-	[&]() -> bool { return !GetSelectedGroup()->m_GameGroup || Map()->m_pSpeedupLayer; },
+	[&]() -> bool { return !Map()->SelectedGroup()->m_GameGroup || Map()->m_pSpeedupLayer; },
 	ALWAYS_FALSE,
 	DEFAULT_BTN,
 	"Create a new speedup layer.")
@@ -198,7 +235,7 @@ REGISTER_QUICK_ACTION(
 	AddTeleLayer,
 	"Add tele layer",
 	[&]() { AddTeleLayer(); },
-	[&]() -> bool { return !GetSelectedGroup()->m_GameGroup || Map()->m_pTeleLayer; },
+	[&]() -> bool { return !Map()->SelectedGroup()->m_GameGroup || Map()->m_pTeleLayer; },
 	ALWAYS_FALSE,
 	DEFAULT_BTN,
 	"Create a new tele layer.")
@@ -206,7 +243,7 @@ REGISTER_QUICK_ACTION(
 	AddFrontLayer,
 	"Add front layer",
 	[&]() { AddFrontLayer(); },
-	[&]() -> bool { return !GetSelectedGroup()->m_GameGroup || Map()->m_pFrontLayer; },
+	[&]() -> bool { return !Map()->SelectedGroup()->m_GameGroup || Map()->m_pFrontLayer; },
 	ALWAYS_FALSE,
 	DEFAULT_BTN,
 	"Create a new item layer.")
@@ -215,38 +252,91 @@ REGISTER_QUICK_ACTION(
 REGISTER_QUICK_ACTION(
 	AddSoundLayer, "Add sound layer", [&]() { AddSoundLayer(); }, ALWAYS_FALSE, ALWAYS_FALSE, DEFAULT_BTN, "Create a new sound layer.")
 REGISTER_QUICK_ACTION(
+	NewMap,
+	"New map",
+	[&]() {
+		Reset();
+		AddDefaultMap();
+	},
+	ALWAYS_FALSE,
+	ALWAYS_FALSE,
+	DEFAULT_BTN,
+	"[Ctrl+N] Create a new map.")
+REGISTER_QUICK_ACTION(
+	Save,
+	"Save",
+	[&]() {
+		if(Map()->m_aFilename[0] != '\0' && Map()->m_ValidSaveFilename)
+		{
+			CallbackSaveMap(Map()->m_aFilename, IStorage::TYPE_SAVE, this);
+		}
+		else
+		{
+			m_FileBrowser.ShowFileDialog(IStorage::TYPE_SAVE, CFileBrowser::EFileType::MAP, "Save map", "Save", "maps", "", CallbackSaveMap, this);
+		}
+	},
+	ALWAYS_FALSE,
+	ALWAYS_FALSE,
+	DEFAULT_BTN,
+	"[Ctrl+S] Save the current map.")
+REGISTER_QUICK_ACTION(
 	SaveAs,
 	"Save as",
 	[&]() {
-		char aDefaultName[IO_MAX_PATH_LENGTH];
-		fs_split_file_extension(fs_filename(Map()->m_aFilename), aDefaultName, sizeof(aDefaultName));
-		m_FileBrowser.ShowFileDialog(IStorage::TYPE_SAVE, CFileBrowser::EFileType::MAP, "Save map", "Save as", "maps", aDefaultName, CallbackSaveMap, this);
+		m_FileBrowser.ShowFileDialog(IStorage::TYPE_SAVE, CFileBrowser::EFileType::MAP, "Save map", "Save as", "maps", Map()->m_aAutosaveName, CallbackSaveMap, this);
 	},
 	ALWAYS_FALSE,
 	ALWAYS_FALSE,
 	DEFAULT_BTN,
 	"[Ctrl+Shift+S] Save the current map under a new name.")
 REGISTER_QUICK_ACTION(
-	LoadCurrentMap,
-	"Load current map",
+	SaveCopy,
+	"Save copy",
 	[&]() {
-		if(HasUnsavedData())
-		{
-			if(!m_PopupEventWasActivated)
-			{
-				m_PopupEventType = POPEVENT_LOADCURRENT;
-				m_PopupEventActivated = true;
-			}
-		}
-		else
-		{
-			LoadCurrentMap();
-		}
+		m_FileBrowser.ShowFileDialog(IStorage::TYPE_SAVE, CFileBrowser::EFileType::MAP, "Save map", "Save copy", "maps", Map()->m_aAutosaveName, CallbackSaveCopyMap, this);
+	},
+	ALWAYS_FALSE,
+	ALWAYS_FALSE,
+	DEFAULT_BTN,
+	"[Ctrl+Shift+Alt+S] Save a copy of the current map under a new name.")
+REGISTER_QUICK_ACTION(
+	LoadMap,
+	"Load map",
+	[&]() {
+		m_FileBrowser.ShowFileDialog(IStorage::TYPE_ALL, CFileBrowser::EFileType::MAP, "Load map", "Load", "maps", "", CallbackOpenMap, this);
+	},
+	ALWAYS_FALSE,
+	ALWAYS_FALSE,
+	DEFAULT_BTN,
+	"[Ctrl+L] Open a map for editing.")
+REGISTER_QUICK_ACTION(
+	LoadIngameMap,
+	"Load ingame map",
+	[&]() {
+		LoadIngameMap();
 	},
 	[&]() -> bool { return Client()->State() != IClient::STATE_ONLINE && Client()->State() != IClient::STATE_DEMOPLAYBACK; },
 	ALWAYS_FALSE,
 	DEFAULT_BTN,
 	"[Ctrl+Shift+L] Open the current ingame map for editing.")
+REGISTER_QUICK_ACTION(
+	AppendMap,
+	"Append map",
+	[&]() {
+		m_FileBrowser.ShowFileDialog(IStorage::TYPE_ALL, CFileBrowser::EFileType::MAP, "Append map", "Append", "maps", "", CallbackAppendMap, this);
+	},
+	ALWAYS_FALSE,
+	ALWAYS_FALSE,
+	DEFAULT_BTN,
+	"[Ctrl+A] Open a map and add everything from that map to the current map.")
+REGISTER_QUICK_ACTION(
+	CloseMap,
+	"Close map",
+	[&]() { CloseMap(m_SelectedMap, true); },
+	ALWAYS_FALSE,
+	ALWAYS_FALSE,
+	DEFAULT_BTN,
+	"[Ctrl+F4] Close the current map.")
 REGISTER_QUICK_ACTION(
 	Envelopes,
 	"Envelopes",
@@ -263,6 +353,22 @@ REGISTER_QUICK_ACTION(
 	ALWAYS_FALSE,
 	[&]() -> int { return m_ShowPicker ? -1 : m_ActiveExtraEditor == EXTRAEDITOR_SERVER_SETTINGS; },
 	"Toggle the server settings editor.")
+REGISTER_QUICK_ACTION(
+	Undo,
+	"Undo",
+	[&]() { Map()->m_EditorHistory.Undo(); },
+	[&]() -> bool { return !Map()->m_EditorHistory.CanUndo(); },
+	ALWAYS_FALSE,
+	DEFAULT_BTN,
+	"[Ctrl+Z] Undo the last action.")
+REGISTER_QUICK_ACTION(
+	Redo,
+	"Redo",
+	[&]() { Map()->m_EditorHistory.Redo(); },
+	[&]() -> bool { return !Map()->m_EditorHistory.CanRedo(); },
+	ALWAYS_FALSE,
+	DEFAULT_BTN,
+	"[Ctrl+Y] Redo the last undone action.")
 REGISTER_QUICK_ACTION(
 	History,
 	"History",
@@ -333,7 +439,7 @@ REGISTER_QUICK_ACTION(
 	"Delete layer",
 	[&]() { DeleteSelectedLayer(); },
 	[&]() -> bool {
-		std::shared_ptr<CLayer> pCurrentLayer = GetSelectedLayer(0);
+		std::shared_ptr<CLayer> pCurrentLayer = Map()->SelectedLayer(0);
 		if(!pCurrentLayer)
 			return true;
 		return Map()->m_pGameLayer == pCurrentLayer;
@@ -362,7 +468,7 @@ REGISTER_QUICK_ACTION(
 	"Add quad",
 	[&]() { AddQuadOrSound(); },
 	[&]() -> bool {
-		std::shared_ptr<CLayer> pLayer = GetSelectedLayer(0);
+		std::shared_ptr<CLayer> pLayer = Map()->SelectedLayer(0);
 		if(!pLayer)
 			return false;
 		return pLayer->m_Type != LAYERTYPE_QUADS;
@@ -375,7 +481,7 @@ REGISTER_QUICK_ACTION(
 	"Add sound source",
 	[&]() { AddQuadOrSound(); },
 	[&]() -> bool {
-		std::shared_ptr<CLayer> pLayer = GetSelectedLayer(0);
+		std::shared_ptr<CLayer> pLayer = Map()->SelectedLayer(0);
 		if(!pLayer)
 			return false;
 		return pLayer->m_Type != LAYERTYPE_SOUNDS;

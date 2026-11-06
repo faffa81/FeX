@@ -3,6 +3,9 @@
 
 #include "graph.h"
 
+#include <base/str.h>
+#include <base/time.h>
+
 #include <engine/graphics.h>
 #include <engine/textrender.h>
 
@@ -92,7 +95,7 @@ void CGraph::Scale(int64_t WantedTotalTime)
 	m_MinAxis = m_MinRange;
 	m_MaxAxis = m_MaxRange;
 	m_MinValue = std::numeric_limits<float>::max();
-	m_MaxValue = std::numeric_limits<float>::min();
+	m_MaxValue = std::numeric_limits<float>::lowest();
 	for(CEntry *pEntry = m_pFirstScaled; pEntry != nullptr; pEntry = m_Entries.Next(pEntry))
 	{
 		const float Value = pEntry->m_Value;
@@ -112,7 +115,7 @@ void CGraph::Scale(int64_t WantedTotalTime)
 		{
 			m_MaxValue = Value;
 		}
-		else if(Value < m_MinValue)
+		if(Value < m_MinValue)
 		{
 			m_MinValue = Value;
 		}
@@ -188,11 +191,7 @@ void CGraph::RenderDataLines(IGraphics *pGraphics, float x, float y, float w, fl
 		{
 			pGraphics->LinesBatchEnd(&LineItemBatch);
 			pGraphics->LinesBatchBegin(&LineItemBatch);
-
-			const IGraphics::CColorVertex aColorVertices[] = {
-				IGraphics::CColorVertex(0, pEntry0->m_Color.r, pEntry0->m_Color.g, pEntry0->m_Color.b, pEntry0->m_Color.a),
-				IGraphics::CColorVertex(1, pEntry1->m_Color.r, pEntry1->m_Color.g, pEntry1->m_Color.b, pEntry1->m_Color.a)};
-			pGraphics->SetColorVertex(aColorVertices, std::size(aColorVertices));
+			pGraphics->SetColor2(pEntry0->m_Color, pEntry1->m_Color);
 		}
 		const IGraphics::CLineItem Item = IGraphics::CLineItem(
 			x + a0,

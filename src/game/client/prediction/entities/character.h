@@ -67,7 +67,7 @@ public:
 	CTeamsCore *TeamsCore();
 	bool Freeze(int Seconds);
 	bool Freeze();
-	bool UnFreeze();
+	bool Unfreeze();
 	void GiveAllWeapons();
 	int Team();
 	bool CanCollide(int ClientId) override;
@@ -135,6 +135,10 @@ public:
 
 	bool IsSuper() const { return m_Core.m_Super; }
 
+	// antiping
+	void AntiPingInterference(int ClientId, bool DisallowReset = false, bool HasToBeUnfrozen = false);
+	bool IsInterfering() const { return m_Interfering; }
+
 private:
 	// weapon info
 	int m_aHitObjects[MAX_CLIENTS];
@@ -147,6 +151,8 @@ private:
 	int m_AttackTick;
 
 	int m_MoveRestrictions;
+
+	int m_PainSoundTimer;
 
 	// these are non-heldback inputs
 	CNetObj_PlayerInput m_LatestPrevInput;
@@ -168,7 +174,7 @@ private:
 
 	// DDRace
 
-	static bool IsSwitchActiveCb(int Number, void *pUser);
+	static bool IsSwitchActiveCb(unsigned char Number, void *pUser);
 	void HandleTiles(int Index);
 	void HandleSkippableTiles(int Index);
 	void DDRaceTick();
@@ -179,6 +185,8 @@ private:
 
 	int m_LastWeaponSwitchTick;
 	int m_LastTuneZoneTick;
+
+	bool m_Interfering;
 };
 
 #endif

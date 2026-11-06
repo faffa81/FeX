@@ -1,6 +1,8 @@
 /* (c) Magnus Auvinen. See licence.txt in the root of the distribution for more information. */
 /* If you are missing that file, acquire a complete release at teeworlds.com.                */
-#include <base/system.h>
+#include <base/io.h>
+#include <base/net.h>
+#include <base/os.h>
 
 enum
 {
@@ -34,6 +36,8 @@ static void Run(NETADDR Dest)
 int main(int argc, const char **argv)
 {
 	CCmdlineFix CmdlineFix(&argc, &argv);
+	net_init();
+
 	NETADDR Dest = {NETTYPE_IPV4, {127, 0, 0, 1}, 8303};
 	Run(Dest);
 	return 0;

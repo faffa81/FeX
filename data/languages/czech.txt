@@ -22,9 +22,6 @@ Abort
 Add
 == Přidat
 
-Add Friend
-== Přidat do přátel
-
 Address
 == Adresa
 
@@ -1168,9 +1165,6 @@ Team %d
 Some map images could not be loaded. Check the local console for details.
 == Některé obrázky mapy se nepodařilo načíst. Podrobnosti najdete v místní konzoli.
 
-Uploading map data to GPU
-== Nahrávání dat map do GPU
-
 Some map sounds could not be loaded. Check the local console for details.
 == Některé zvuky mapy nelze načíst. Podrobnosti najdete v místní konzoli.
 
@@ -1306,9 +1300,6 @@ Are you sure that you want to remove the player '%s' from your friends list?
 
 Are you sure that you want to remove the clan '%s' from your friends list?
 == Opravdu chcete odstranit klan '%s' ze svého seznamu přátel?
-
-Add Clan
-== Přidat Klan
 
 Server filter
 == Filtr serveru
@@ -1447,9 +1438,6 @@ Deactivate all
 
 Menu opened. Press Esc key again to close menu.
 == Nabídka otevřena. Stisknutím klávesy Esc nabídku zavřete.
-
-Save power by lowering refresh rate (higher input latency)
-== Šetřit energii snížením obnovovací frekvence (vyšší vstupní odezva)
 
 Settings file
 == Soubor s nastavením
@@ -1636,20 +1624,8 @@ Hook collision line
 Hook collision line opacity
 == Neprůhlednost čáry kolize háku
 
-Colors of the hook collision line, in case of a possible collision with:
-== Barvy čáry kolize háku v případě kolize s:
-
 Your movements are not taken into account when calculating the line colors
 == Váš pohyb se při výpočtu barev čar nebere v úvahu
-
-Nothing hookable
-== Nic k zaháknutí
-
-Something hookable
-== Něco k zaháknutí
-
-A Tee
-== Hráč
 
 Show finish messages
 == Zobrazit zprávy o dokončení
@@ -1746,9 +1722,6 @@ https://ddnet.org/discord
 
 Tutorial
 == Výuka
-
-Can't find a Tutorial server
-== Nelze najít Výukový server
 
 Loading race demo files
 == Načítání záznamů závodů
@@ -2196,9 +2169,6 @@ Dragger Outline Color
 Dragger Inner Color
 == Vnitřní Barva Tahače
 
-AntiPing: prediction margin
-== AntiPing: marže predikce
-
 Server could not be started. Make sure to grant the notification permission in the app settings so the server can run in the background.
 == Server se nepodařilo spustit. Ujistěte se, že jste v nastavení aplikace povolili oznámení, aby server mohl běžet na pozadí.
 
@@ -2249,12 +2219,6 @@ Are you sure that you want to delete this button?
 Duplicate
 == Duplikát
 
-New button already created
-== Nové tlačítko již bylo vytvořeno
-
-A new button has already been created, please save or delete it before creating another one.
-== Nové tlačítko již bylo vytvořeno, před vytvořením dalšího jej prosím uložte nebo smažte.
-
 Please save your changes before duplicating a button.
 == Před duplikováním tlačítka prosím uložte změny.
 
@@ -2263,9 +2227,6 @@ No space for button
 
 There is not enough space available to place another button.
 == Není dostatek místa pro umístění dalšího tlačítka.
-
-There is not enough space available to place another button with this size. The button has been resized.
-== Není dostatek místa pro umístění dalšího tlačítka této velikosti. Velikost tlačítka byla změněna.
 
 Deselect
 == Zrušit výběr
@@ -2343,9 +2304,6 @@ Excluded
 [Touch button visibility preview]
 Ignore
 == Ignorovat
-
-Long press on a touch button to select it.
-== Dlouhým stisknutím dotykového tlačítka jej vyberete.
 
 New button
 == Nové tlačítko
@@ -2485,6 +2443,12 @@ Censor profanity
 Download
 == Stáhnout
 
+Add clan
+== Přidat klan
+
+Add friend
+== Přidat do přátel
+
 Team save in progress. You'll be able to load with '/load %s'
 == 
 
@@ -2500,6 +2464,16 @@ Team successfully saved by %s. The database connection failed, using generated s
 Save failed!
 == 
 
+Hold Shift to be more precise.
+== 
+
+Dummy is not connected
+== 
+
+[Important alert message]
+Tap to dismiss…
+== 
+
 [Important alert message]
 Press Esc or Tab to dismiss…
 == 
@@ -2510,19 +2484,232 @@ Server alert
 Moderator alert
 == 
 
+Initializing layers
+== 
+
+Joining Tutorial server
+== 
+
+There's an unsaved change in the touch controls editor, you might want to save it.
+== 
+
 You will be disconnected from the server.
+== 
+
+There are no Tutorial servers available
+== 
+
+Retrying…
+== 
+
+Error joining Tutorial server
+== 
+
+Could not find a Tutorial server. Check your internet connection.
+== 
+
+You're playing on a local server because no online Tutorial server could be found.\n\nYour record will only be saved locally.
+== 
+
+Could not find online Tutorial server.\nStarting and connecting to local server…
+== 
+
+Waiting for local server to stop…
+== 
+
+Waiting for local server to start…
+== 
+
+Start and connect to local server
+== 
+
+Error loading communities
+== 
+
+Click to remove this community from your favorites.
+== 
+
+Click to add this community to your favorites.
+== 
+
+Refresh the demo list
+== 
+
+Open the selected folder
+== 
+
+Play the selected demo
 == 
 
 Are you sure that you want to disconnect and play this demo?
 == 
 
-Show background quads
+Info
+== 
+
+Button browser
+== 
+
+You can select buttons directly in the list below, or long press on a touch button on the screen to select it. You can also move and resize buttons by touch.
+== 
+
+[Direct touch input]
+Relative aim
+== 
+
+Preview visibilities
+== 
+
+You can manage your touch controls settings on this page. Only changes that are saved will be available after restarting the client. You can share your touch controls with others by exporting them to the clipboard.\n\nYou can find more detailed information about the touch controls on the DDNet Wiki.
+== 
+
+Open DDNet Wiki
+== 
+
+[Predefined touch button behaviors]
+Joystick Relative Aim
+== 
+
+Buttons with this behavior execute console commands like regular key binds.
+== 
+
+Buttons with this behavior cycle between executing one of two or more specified commands.
+== 
+
+Buttons with this behavior execute some predefined actions.
+== 
+
+Opens the ingame menu immediately when released.
+== 
+
+The extra menu button which toggles visibility of buttons with "Extra Menu" visibilities. Also opens the ingame menu on long press.
+== 
+
+Opens the emoticon selector (this does not work with binds).
+== 
+
+Opens the spectator menu (this does not work with binds).
+== 
+
+Swaps the active action (fire and hook) for direct touch input and virtual joysticks.
+== 
+
+Uses the active action with the current aiming position.
+== 
+
+Virtual joystick which uses the active action.
+== 
+
+Virtual joystick which only aims without using an action.
+== 
+
+Virtual joystick which only aims and moves the mouse pointer relatively.
+== 
+
+Virtual joystick which always uses fire.
+== 
+
+Virtual joystick which always uses hook.
+== 
+
+Player is ingame, i.e. not spectating.
+== 
+
+Zoom is allowed on this server.
+== 
+
+A vote is currently active.
+== 
+
+Dummy is allowed on this server.
+== 
+
+Dummy is currently connected.
+== 
+
+Player is currently authed in rcon.
+== 
+
+Demo player is currently active.
+== 
+
+The extra menu with the given number is activated.
+== 
+
+Credits
+== 
+
+Colors of the hook collision line:
+== 
+
+[Hook collision line color]
+When nothing is hookable
+== 
+
+[Hook collision line color]
+When something is hookable
+== 
+
+[Hook collision line color]
+When a Tee is hookable
+== 
+
+[Hook collision line color]
+Hook collision line tip
+== 
+
+Teleport to cursor
+== 
+
+Teleport dummy to cursor
 == 
 
 Scoreboard cursor
 == 
 
-Add friend
+Practice
+== 
+
+Show background quads
+== 
+
+Prediction margin
+== 
+
+Predict events (experimental)
+== 
+
+[AntiPing: predict other players]
+Off
+== 
+
+[AntiPing: predict other players]
+All
+== 
+
+[AntiPing: predict other players]
+Interact
+== 
+
+Always predict frozen players
+== 
+
+Update Rate
+== 
+
+Save power by lowering update rate (higher input latency)
+== 
+
+No country flags match your filter criteria
+== 
+
+Join
+== 
+
+not bound
+== 
+
+Show cursor
 == 
 
 Unmute

@@ -1,8 +1,10 @@
 #if defined(CONF_BACKEND_VULKAN)
 
+#include <base/dbg.h>
 #include <base/log.h>
-#include <base/math.h>
-#include <base/system.h>
+#include <base/mem.h>
+#include <base/str.h>
+#include <base/time.h>
 
 #include <engine/client/backend/backend_base.h>
 #include <engine/client/backend/vulkan/backend_vulkan.h>
@@ -37,6 +39,11 @@
 #include <utility>
 #include <vector>
 
+// Set on render worker threads so that memory-allocation recovery (which drives
+// the frame loop and issues queue submit/present) is only ever attempted on the
+// main render thread. See AllocateVulkanMemory().
+static thread_local bool s_ThreadIsRenderWorker = false;
+
 #ifndef VK_API_VERSION_MAJOR
 #define VK_API_VERSION_MAJOR VK_VERSION_MAJOR
 #define VK_API_VERSION_MINOR VK_VERSION_MINOR
@@ -47,15 +54,12 @@ using namespace std::chrono_literals;
 
 class CCommandProcessorFragment_Vulkan : public CCommandProcessorFragment_GLBase
 {
-	enum EMemoryBlockUsage
+	enum class EMemoryBlockUsage
 	{
-		MEMORY_BLOCK_USAGE_TEXTURE = 0,
-		MEMORY_BLOCK_USAGE_BUFFER,
-		MEMORY_BLOCK_USAGE_STREAM,
-		MEMORY_BLOCK_USAGE_STAGING,
-
-		// whenever dummy is used, make sure to deallocate all memory
-		MEMORY_BLOCK_USAGE_DUMMY,
+		TEXTURE,
+		BUFFER,
+		STREAM,
+		STAGING,
 	};
 
 	[[nodiscard]] bool IsVerbose()
@@ -63,48 +67,33 @@ class CCommandProcessorFragment_Vulkan : public CCommandProcessorFragment_GLBase
 		return g_Config.m_DbgGfx == DEBUG_GFX_MODE_VERBOSE || g_Config.m_DbgGfx == DEBUG_GFX_MODE_ALL;
 	}
 
-	void VerboseAllocatedMemory(VkDeviceSize Size, size_t FrameImageIndex, EMemoryBlockUsage MemUsage) const
+	static const char *MemoryUsageName(EMemoryBlockUsage MemUsage)
 	{
-		const char *pUsage = "unknown";
 		switch(MemUsage)
 		{
-		case MEMORY_BLOCK_USAGE_TEXTURE:
-			pUsage = "texture";
-			break;
-		case MEMORY_BLOCK_USAGE_BUFFER:
-			pUsage = "buffer";
-			break;
-		case MEMORY_BLOCK_USAGE_STREAM:
-			pUsage = "stream";
-			break;
-		case MEMORY_BLOCK_USAGE_STAGING:
-			pUsage = "staging buffer";
-			break;
-		default: break;
+		case EMemoryBlockUsage::TEXTURE:
+			return "texture";
+		case EMemoryBlockUsage::BUFFER:
+			return "buffer";
+		case EMemoryBlockUsage::STREAM:
+			return "stream";
+		case EMemoryBlockUsage::STAGING:
+			return "staging buffer";
+		default:
+			dbg_assert_failed("Invalid MemUsage: %d", (int)MemUsage);
 		}
-		dbg_msg("vulkan", "allocated chunk of memory with size: %" PRIzu " for frame %" PRIzu " (%s)", (size_t)Size, (size_t)m_CurImageIndex, pUsage);
+	}
+
+	void VerboseAllocatedMemory(VkDeviceSize Size, size_t FrameImageIndex, EMemoryBlockUsage MemUsage) const
+	{
+		log_debug("gfx/vulkan", "Allocated chunk of memory with size %" PRIzu " for frame %" PRIzu " (%s).",
+			(size_t)Size, (size_t)m_CurImageIndex, MemoryUsageName(MemUsage));
 	}
 
 	void VerboseDeallocatedMemory(VkDeviceSize Size, size_t FrameImageIndex, EMemoryBlockUsage MemUsage) const
 	{
-		const char *pUsage = "unknown";
-		switch(MemUsage)
-		{
-		case MEMORY_BLOCK_USAGE_TEXTURE:
-			pUsage = "texture";
-			break;
-		case MEMORY_BLOCK_USAGE_BUFFER:
-			pUsage = "buffer";
-			break;
-		case MEMORY_BLOCK_USAGE_STREAM:
-			pUsage = "stream";
-			break;
-		case MEMORY_BLOCK_USAGE_STAGING:
-			pUsage = "staging buffer";
-			break;
-		default: break;
-		}
-		dbg_msg("vulkan", "deallocated chunk of memory with size: %" PRIzu " for frame %" PRIzu " (%s)", (size_t)Size, (size_t)m_CurImageIndex, pUsage);
+		log_debug("gfx/vulkan", "Deallocated chunk of memory with size %" PRIzu " for frame %" PRIzu " (%s).",
+			(size_t)Size, (size_t)m_CurImageIndex, MemoryUsageName(MemUsage));
 	}
 
 	/************************
@@ -159,20 +148,15 @@ class CCommandProcessorFragment_Vulkan : public CCommandProcessorFragment_GLBase
 			size_t m_OffsetToAlign;
 			SMemoryHeapElement *m_pElementInHeap;
 			[[nodiscard]] bool operator>(const SMemoryHeapQueueElement &Other) const { return m_AllocationSize > Other.m_AllocationSize; }
-			struct SMemoryHeapQueueElementFind
+			// respects alignment requirements
+			constexpr bool CanFitAllocation(size_t AllocSize, size_t AllocAlignment) const
 			{
-				// respects alignment requirements
-				constexpr bool operator()(const SMemoryHeapQueueElement &Val, const std::pair<size_t, size_t> &Other) const
-				{
-					auto AllocSize = Other.first;
-					auto AllocAlignment = Other.second;
-					size_t ExtraSizeAlign = Val.m_OffsetInHeap % AllocAlignment;
-					if(ExtraSizeAlign != 0)
-						ExtraSizeAlign = AllocAlignment - ExtraSizeAlign;
-					size_t RealAllocSize = AllocSize + ExtraSizeAlign;
-					return Val.m_AllocationSize < RealAllocSize;
-				}
-			};
+				size_t ExtraSizeAlign = m_OffsetInHeap % AllocAlignment;
+				if(ExtraSizeAlign != 0)
+					ExtraSizeAlign = AllocAlignment - ExtraSizeAlign;
+				size_t RealAllocSize = AllocSize + ExtraSizeAlign;
+				return m_AllocationSize >= RealAllocSize;
+			}
 		};
 
 		typedef std::multiset<SMemoryHeapQueueElement, std::greater<>> TMemoryHeapQueue;
@@ -216,7 +200,7 @@ class CCommandProcessorFragment_Vulkan : public CCommandProcessorFragment_GLBase
 			else
 			{
 				// check if there is enough space in this instance
-				if(SMemoryHeapQueueElement::SMemoryHeapQueueElementFind{}(*m_Elements.begin(), std::make_pair(AllocSize, AllocAlignment)))
+				if(!m_Elements.begin()->CanFitAllocation(AllocSize, AllocAlignment))
 				{
 					return false;
 				}
@@ -228,7 +212,15 @@ class CCommandProcessorFragment_Vulkan : public CCommandProcessorFragment_GLBase
 					// find upper bound for a allocation size
 					auto Upper = m_Elements.upper_bound(FindAllocSize);
 					// then find the first entry that respects alignment, this is a linear search!
-					auto FoundEl = std::lower_bound(std::make_reverse_iterator(Upper), m_Elements.rend(), std::make_pair(AllocSize, AllocAlignment), SMemoryHeapQueueElement::SMemoryHeapQueueElementFind{});
+					auto FoundEl = m_Elements.rend();
+					for(auto AllocIterator = std::make_reverse_iterator(Upper); AllocIterator != m_Elements.rend(); ++AllocIterator)
+					{
+						if(AllocIterator->CanFitAllocation(AllocSize, AllocAlignment))
+						{
+							FoundEl = AllocIterator;
+							break;
+						}
+					}
 
 					auto TopEl = *FoundEl;
 					m_Elements.erase(TopEl.m_pElementInHeap->m_InQueue);
@@ -441,7 +433,9 @@ class CCommandProcessorFragment_Vulkan : public CCommandProcessorFragment_GLBase
 								break;
 						}
 						else
+						{
 							++HeapIterator;
+						}
 					}
 				}
 			}
@@ -1006,6 +1000,14 @@ private:
 	VkDebugUtilsMessengerEXT m_DebugMessenger;
 #endif
 
+#ifdef VK_EXT_device_fault
+	// Optional VK_EXT_device_fault support. When the driver exposes the extension
+	// we enable it so that a VK_ERROR_DEVICE_LOST can be followed up with detailed
+	// fault information (faulting GPU addresses and vendor specific fault codes).
+	bool m_DeviceFaultAvailable = false;
+	PFN_vkGetDeviceFaultInfoEXT m_pfnGetDeviceFaultInfoEXT = nullptr;
+#endif
+
 	VkDescriptorSetLayout m_StandardTexturedDescriptorSetLayout;
 	VkDescriptorSetLayout m_Standard3DTexturedDescriptorSetLayout;
 
@@ -1127,9 +1129,9 @@ protected:
 		if(m_CanAssert)
 		{
 			if(pErrStrExtra != nullptr)
-				dbg_msg("vulkan", "vulkan error: %s: %s", pErr, pErrStrExtra);
+				log_error("gfx/vulkan", "%s: %s", pErr, pErrStrExtra);
 			else
-				dbg_msg("vulkan", "vulkan error: %s", pErr);
+				log_error("gfx/vulkan", "%s", pErr);
 			m_HasError = true;
 			m_Error.m_ErrorType = ErrType;
 		}
@@ -1152,11 +1154,68 @@ protected:
 	void SetWarning(EGfxWarningType WarningType, const char *pWarning)
 	{
 		std::unique_lock<std::mutex> Lock(m_ErrWarnMutex);
-		dbg_msg("vulkan", "vulkan warning: %s", pWarning);
+		log_warn("gfx/vulkan", "%s", pWarning);
 		if(std::find(m_Warning.m_vWarnings.begin(), m_Warning.m_vWarnings.end(), pWarning) == m_Warning.m_vWarnings.end())
 			m_Warning.m_vWarnings.emplace_back(pWarning);
 		m_Warning.m_WarningType = WarningType;
 	}
+
+#ifdef VK_EXT_device_fault
+	static const char *DeviceFaultAddressTypeName(VkDeviceFaultAddressTypeEXT Type)
+	{
+		switch(Type)
+		{
+		case VK_DEVICE_FAULT_ADDRESS_TYPE_NONE_EXT: return "none";
+		case VK_DEVICE_FAULT_ADDRESS_TYPE_READ_INVALID_EXT: return "read_invalid";
+		case VK_DEVICE_FAULT_ADDRESS_TYPE_WRITE_INVALID_EXT: return "write_invalid";
+		case VK_DEVICE_FAULT_ADDRESS_TYPE_EXECUTE_INVALID_EXT: return "execute_invalid";
+		case VK_DEVICE_FAULT_ADDRESS_TYPE_INSTRUCTION_POINTER_UNKNOWN_EXT: return "instruction_pointer_unknown";
+		case VK_DEVICE_FAULT_ADDRESS_TYPE_INSTRUCTION_POINTER_INVALID_EXT: return "instruction_pointer_invalid";
+		case VK_DEVICE_FAULT_ADDRESS_TYPE_INSTRUCTION_POINTER_FAULT_EXT: return "instruction_pointer_fault";
+		default: return "unknown";
+		}
+	}
+
+	// Queries and logs VK_EXT_device_fault information. Safe to call unconditionally:
+	// it is a no-op unless the extension was enabled at device creation.
+	void LogDeviceFaultInfo()
+	{
+		if(!m_DeviceFaultAvailable || m_pfnGetDeviceFaultInfoEXT == nullptr)
+			return;
+
+		VkDeviceFaultCountsEXT FaultCounts = {};
+		FaultCounts.sType = VK_STRUCTURE_TYPE_DEVICE_FAULT_COUNTS_EXT;
+		if(m_pfnGetDeviceFaultInfoEXT(m_VKDevice, &FaultCounts, nullptr) != VK_SUCCESS)
+			return;
+
+		std::vector<VkDeviceFaultAddressInfoEXT> vAddressInfos(FaultCounts.addressInfoCount);
+		std::vector<VkDeviceFaultVendorInfoEXT> vVendorInfos(FaultCounts.vendorInfoCount);
+
+		VkDeviceFaultInfoEXT FaultInfo = {};
+		FaultInfo.sType = VK_STRUCTURE_TYPE_DEVICE_FAULT_INFO_EXT;
+		FaultInfo.pAddressInfos = vAddressInfos.data();
+		FaultInfo.pVendorInfos = vVendorInfos.data();
+		// We do not request the (potentially large) vendor binary crash dump here.
+		// pVendorBinaryData stays null, so the size passed to the driver must be zero.
+		FaultCounts.vendorBinarySize = 0;
+		if(m_pfnGetDeviceFaultInfoEXT(m_VKDevice, &FaultCounts, &FaultInfo) != VK_SUCCESS)
+			return;
+
+		log_error("gfx/vulkan", "Device fault info (VK_EXT_device_fault): %s", FaultInfo.description);
+		for(uint32_t i = 0; i < FaultCounts.addressInfoCount; ++i)
+		{
+			const VkDeviceFaultAddressInfoEXT &Info = vAddressInfos[i];
+			log_error("gfx/vulkan", "  address fault: type=%s reportedAddress=0x%" PRIx64 " precision=0x%" PRIx64,
+				DeviceFaultAddressTypeName(Info.addressType), (uint64_t)Info.reportedAddress, (uint64_t)Info.addressPrecision);
+		}
+		for(uint32_t i = 0; i < FaultCounts.vendorInfoCount; ++i)
+		{
+			const VkDeviceFaultVendorInfoEXT &Info = vVendorInfos[i];
+			log_error("gfx/vulkan", "  vendor fault: %s code=0x%" PRIx64 " data=0x%" PRIx64,
+				Info.description, (uint64_t)Info.vendorFaultCode, (uint64_t)Info.vendorFaultData);
+		}
+	}
+#endif
 
 	const char *CheckVulkanCriticalError(VkResult CallResult)
 	{
@@ -1164,62 +1223,65 @@ protected:
 		switch(CallResult)
 		{
 		case VK_ERROR_OUT_OF_HOST_MEMORY:
-			pCriticalError = "host ran out of memory";
-			dbg_msg("vulkan", "%s", pCriticalError);
+			pCriticalError = "Host ran out of memory.";
+			log_error("gfx/vulkan", "%s", pCriticalError);
 			break;
 		case VK_ERROR_OUT_OF_DEVICE_MEMORY:
-			pCriticalError = "device ran out of memory";
-			dbg_msg("vulkan", "%s", pCriticalError);
+			pCriticalError = "Device ran out of memory.";
+			log_error("gfx/vulkan", "%s", pCriticalError);
 			break;
 		case VK_ERROR_DEVICE_LOST:
-			pCriticalError = "device lost";
-			dbg_msg("vulkan", "%s", pCriticalError);
+			pCriticalError = "Device lost.";
+			log_error("gfx/vulkan", "%s", pCriticalError);
+#ifdef VK_EXT_device_fault
+			LogDeviceFaultInfo();
+#else
+			log_error("gfx/vulkan", "Detailed fault info unavailable: built without VK_EXT_device_fault support (Vulkan headers too old).");
+#endif
 			break;
 		case VK_ERROR_OUT_OF_DATE_KHR:
 		{
 			if(IsVerbose())
 			{
-				dbg_msg("vulkan", "queueing swap chain recreation because the current is out of date");
+				log_debug("gfx/vulkan", "Queueing swap chain recreation because the current is out of date.");
 			}
 			m_RecreateSwapChain = true;
 			break;
 		}
 		case VK_ERROR_SURFACE_LOST_KHR:
-			dbg_msg("vulkan", "surface lost");
+			log_error("gfx/vulkan", "Surface lost.");
 			break;
-		/*case VK_ERROR_FULL_SCREEN_EXCLUSIVE_MODE_LOST_EXT:
-			dbg_msg("vulkan", "fullscreen exclusive mode lost");
-			break;*/
 		case VK_ERROR_INCOMPATIBLE_DRIVER:
-			pCriticalError = "no compatible driver found. Vulkan 1.1 is required.";
-			dbg_msg("vulkan", "%s", pCriticalError);
+			pCriticalError = "No compatible driver found. Vulkan 1.1 is required.";
+			log_error("gfx/vulkan", "%s", pCriticalError);
 			break;
 		case VK_ERROR_INITIALIZATION_FAILED:
-			pCriticalError = "initialization failed for unknown reason.";
-			dbg_msg("vulkan", "%s", pCriticalError);
+			pCriticalError = "Initialization failed for unknown reason.";
+			log_error("gfx/vulkan", "%s", pCriticalError);
 			break;
 		case VK_ERROR_LAYER_NOT_PRESENT:
-			SetWarning(EGfxWarningType::GFX_WARNING_MISSING_EXTENSION, "One Vulkan layer was not present. (try to disable them)");
+			SetWarning(EGfxWarningType::GFX_WARNING_MISSING_EXTENSION, "At least one Vulkan layer was not present. (Try to disable them.)");
 			break;
 		case VK_ERROR_EXTENSION_NOT_PRESENT:
-			SetWarning(EGfxWarningType::GFX_WARNING_MISSING_EXTENSION, "One Vulkan extension was not present. (try to disable them)");
+			SetWarning(EGfxWarningType::GFX_WARNING_MISSING_EXTENSION, "At least one Vulkan extension was not present. (Try to disable them.)");
 			break;
 		case VK_ERROR_NATIVE_WINDOW_IN_USE_KHR:
-			dbg_msg("vulkan", "native window in use");
+			log_error("gfx/vulkan", "Native window in use.");
 			break;
 		case VK_SUCCESS:
 			break;
 		case VK_SUBOPTIMAL_KHR:
 			if(IsVerbose())
 			{
-				dbg_msg("vulkan", "queueing swap chain recreation because the current is sub optimal");
+				log_debug("gfx/vulkan", "Queueing swap chain recreation because the current is suboptimal.");
 			}
 			m_RecreateSwapChain = true;
 			break;
 		default:
-			m_ErrorHelper = "unknown error: ";
+			m_ErrorHelper = "Unknown error: ";
 			m_ErrorHelper.append(std::to_string(CallResult));
 			pCriticalError = m_ErrorHelper.c_str();
+			log_error("gfx/vulkan", "%s", pCriticalError);
 			break;
 		}
 
@@ -1490,7 +1552,7 @@ protected:
 			MemRange.size = VK_WHOLE_SIZE;
 			vkInvalidateMappedMemoryRanges(m_VKDevice, 1, &MemRange);
 
-			size_t RealFullImageSize = maximum(ImageTotalSize, (size_t)(Height * m_GetPresentedImgDataHelperMappedLayoutPitch));
+			size_t RealFullImageSize = std::max(ImageTotalSize, (size_t)(Height * m_GetPresentedImgDataHelperMappedLayoutPitch));
 			size_t ExtraRowSize = Width * 4;
 			if(vDstData.size() < RealFullImageSize + ExtraRowSize)
 				vDstData.resize(RealFullImageSize + ExtraRowSize);
@@ -1532,11 +1594,11 @@ protected:
 		{
 			if(!UsesRGBALikeFormat)
 			{
-				dbg_msg("vulkan", "swap chain image was not in a RGBA like format.");
+				log_error("gfx/vulkan", "Swap chain image was not in an RGBA-like format.");
 			}
 			else
 			{
-				dbg_msg("vulkan", "swap chain image was not ready to be copied.");
+				log_error("gfx/vulkan", "Swap chain image was not ready to be copied.");
 			}
 			return false;
 		}
@@ -1556,8 +1618,17 @@ protected:
 		VkResult Res = vkAllocateMemory(m_VKDevice, pAllocateInfo, nullptr, pMemory);
 		if(Res != VK_SUCCESS)
 		{
-			dbg_msg("vulkan", "vulkan memory allocation failed, trying to recover.");
-			if(Res == VK_ERROR_OUT_OF_HOST_MEMORY || Res == VK_ERROR_OUT_OF_DEVICE_MEMORY)
+			log_warn("gfx/vulkan", "Memory allocation failed, trying to recover.");
+			// The recovery below advances the frame loop (vkDeviceWaitIdle +
+			// NextFrame -> WaitFrame -> FinishRenderThreads -> queue submit/present)
+			// to free delayed-cleanup resources and retry. That is only valid on
+			// the main render thread. On a render worker thread it would wait on
+			// the worker executing it (and re-lock that worker's own mutex),
+			// deadlocking the renderer, and issue queue operations concurrently
+			// with the main thread (-> VK_ERROR_DEVICE_LOST). From a worker we
+			// therefore fail cleanly; the failing allocation's caller reports an
+			// out-of-memory error and the main thread handles it.
+			if((Res == VK_ERROR_OUT_OF_HOST_MEMORY || Res == VK_ERROR_OUT_OF_DEVICE_MEMORY) && !s_ThreadIsRenderWorker)
 			{
 				// aggressively try to get more memory
 				vkDeviceWaitIdle(m_VKDevice);
@@ -1570,7 +1641,7 @@ protected:
 			}
 			if(Res != VK_SUCCESS)
 			{
-				dbg_msg("vulkan", "vulkan memory allocation failed.");
+				log_error("gfx/vulkan", "Memory allocation and recovery failed.");
 				return false;
 			}
 		}
@@ -1608,10 +1679,10 @@ protected:
 			}
 			if(!FoundAllocation)
 			{
-				typename SMemoryBlockCache<Id>::SMemoryCacheType::SMemoryCacheHeap *pNewHeap = new typename SMemoryBlockCache<Id>::SMemoryCacheType::SMemoryCacheHeap();
+				typename SMemoryBlockCache<Id>::SMemoryCacheType::SMemoryCacheHeap *pNewHeap = new SMemoryBlockCache<Id>::SMemoryCacheType::SMemoryCacheHeap();
 
 				VkBuffer TmpBuffer;
-				if(!GetBufferImpl(MemoryBlockSize * BlockCount, RequiresMapping ? MEMORY_BLOCK_USAGE_STAGING : MEMORY_BLOCK_USAGE_BUFFER, TmpBuffer, TmpBufferMemory, BufferUsage, BufferProperties))
+				if(!GetBufferImpl(MemoryBlockSize * BlockCount, RequiresMapping ? EMemoryBlockUsage::STAGING : EMemoryBlockUsage::BUFFER, TmpBuffer, TmpBufferMemory, BufferUsage, BufferProperties))
 				{
 					delete pNewHeap;
 					return false;
@@ -1669,7 +1740,7 @@ protected:
 		{
 			VkBuffer TmpBuffer;
 			SDeviceMemoryBlock TmpBufferMemory;
-			if(!GetBufferImpl(RequiredSize, RequiresMapping ? MEMORY_BLOCK_USAGE_STAGING : MEMORY_BLOCK_USAGE_BUFFER, TmpBuffer, TmpBufferMemory, BufferUsage, BufferProperties))
+			if(!GetBufferImpl(RequiredSize, RequiresMapping ? EMemoryBlockUsage::STAGING : EMemoryBlockUsage::BUFFER, TmpBuffer, TmpBufferMemory, BufferUsage, BufferProperties))
 				return false;
 
 			void *pMapData = nullptr;
@@ -1695,12 +1766,12 @@ protected:
 
 	[[nodiscard]] bool GetStagingBuffer(SMemoryBlock<STAGING_BUFFER_CACHE_ID> &ResBlock, const void *pBufferData, VkDeviceSize RequiredSize)
 	{
-		return GetBufferBlockImpl<STAGING_BUFFER_CACHE_ID, 8 * 1024 * 1024, 3, true>(ResBlock, m_StagingBufferCache, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_CACHED_BIT, pBufferData, RequiredSize, maximum<VkDeviceSize>(m_NonCoherentMemAlignment, 16));
+		return GetBufferBlockImpl<STAGING_BUFFER_CACHE_ID, 8 * 1024 * 1024, 3, true>(ResBlock, m_StagingBufferCache, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_CACHED_BIT, pBufferData, RequiredSize, std::max(m_NonCoherentMemAlignment, (VkDeviceSize)16));
 	}
 
 	[[nodiscard]] bool GetStagingBufferImage(SMemoryBlock<STAGING_BUFFER_IMAGE_CACHE_ID> &ResBlock, const void *pBufferData, VkDeviceSize RequiredSize)
 	{
-		return GetBufferBlockImpl<STAGING_BUFFER_IMAGE_CACHE_ID, 8 * 1024 * 1024, 3, true>(ResBlock, m_StagingBufferCacheImage, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_CACHED_BIT, pBufferData, RequiredSize, maximum<VkDeviceSize>(m_OptimalImageCopyMemAlignment, maximum<VkDeviceSize>(m_NonCoherentMemAlignment, 16)));
+		return GetBufferBlockImpl<STAGING_BUFFER_IMAGE_CACHE_ID, 8 * 1024 * 1024, 3, true>(ResBlock, m_StagingBufferCacheImage, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_CACHED_BIT, pBufferData, RequiredSize, std::max({m_OptimalImageCopyMemAlignment, m_NonCoherentMemAlignment, (VkDeviceSize)16}));
 	}
 
 	template<size_t Id>
@@ -1768,7 +1839,7 @@ protected:
 
 	static size_t ImageMipLevelCount(size_t Width, size_t Height, size_t Depth)
 	{
-		return std::floor(std::log2(maximum(Width, maximum(Height, Depth)))) + 1;
+		return std::floor(std::log2(std::max({Width, Height, Depth}))) + 1;
 	}
 
 	static size_t ImageMipLevelCount(const VkExtent3D &ImgExtent)
@@ -1791,7 +1862,7 @@ protected:
 
 		if(IsVerbose())
 		{
-			VerboseAllocatedMemory(RequiredSize, m_CurImageIndex, MEMORY_BLOCK_USAGE_TEXTURE);
+			VerboseAllocatedMemory(RequiredSize, m_CurImageIndex, EMemoryBlockUsage::TEXTURE);
 		}
 
 		if(!AllocateVulkanMemory(&MemAllocInfo, &BufferMemory.m_Mem))
@@ -1800,7 +1871,7 @@ protected:
 			return false;
 		}
 
-		BufferMemory.m_UsageType = MEMORY_BLOCK_USAGE_TEXTURE;
+		BufferMemory.m_UsageType = EMemoryBlockUsage::TEXTURE;
 
 		return true;
 	}
@@ -1827,7 +1898,7 @@ protected:
 			}
 			if(!FoundAllocation)
 			{
-				typename SMemoryBlockCache<Id>::SMemoryCacheType::SMemoryCacheHeap *pNewHeap = new typename SMemoryBlockCache<Id>::SMemoryCacheType::SMemoryCacheHeap();
+				typename SMemoryBlockCache<Id>::SMemoryCacheType::SMemoryCacheHeap *pNewHeap = new SMemoryBlockCache<Id>::SMemoryCacheType::SMemoryCacheHeap();
 
 				if(!GetImageMemoryImpl(MemoryBlockSize * BlockCount, RequiredMemoryTypeBits, TmpBufferMemory, BufferProperties))
 				{
@@ -1955,13 +2026,13 @@ protected:
 		if(BufferMem.m_Mem != VK_NULL_HANDLE)
 		{
 			vkFreeMemory(m_VKDevice, BufferMem.m_Mem, nullptr);
-			if(BufferMem.m_UsageType == MEMORY_BLOCK_USAGE_BUFFER)
+			if(BufferMem.m_UsageType == EMemoryBlockUsage::BUFFER)
 				m_pBufferMemoryUsage->store(m_pBufferMemoryUsage->load(std::memory_order_relaxed) - BufferMem.m_Size, std::memory_order_relaxed);
-			else if(BufferMem.m_UsageType == MEMORY_BLOCK_USAGE_TEXTURE)
+			else if(BufferMem.m_UsageType == EMemoryBlockUsage::TEXTURE)
 				m_pTextureMemoryUsage->store(m_pTextureMemoryUsage->load(std::memory_order_relaxed) - BufferMem.m_Size, std::memory_order_relaxed);
-			else if(BufferMem.m_UsageType == MEMORY_BLOCK_USAGE_STREAM)
+			else if(BufferMem.m_UsageType == EMemoryBlockUsage::STREAM)
 				m_pStreamMemoryUsage->store(m_pStreamMemoryUsage->load(std::memory_order_relaxed) - BufferMem.m_Size, std::memory_order_relaxed);
-			else if(BufferMem.m_UsageType == MEMORY_BLOCK_USAGE_STAGING)
+			else if(BufferMem.m_UsageType == EMemoryBlockUsage::STAGING)
 				m_pStagingMemoryUsage->store(m_pStagingMemoryUsage->load(std::memory_order_relaxed) - BufferMem.m_Size, std::memory_order_relaxed);
 
 			if(IsVerbose())
@@ -2063,7 +2134,7 @@ protected:
 			m_pStagingMemoryUsage->store(m_pStagingMemoryUsage->load(std::memory_order_relaxed) - FreedMemory, std::memory_order_relaxed);
 			if(IsVerbose())
 			{
-				dbg_msg("vulkan", "deallocated chunks of memory with size: %" PRIzu " from all frames (staging buffer)", FreedMemory);
+				log_debug("gfx/vulkan", "Deallocated chunks of memory with size %" PRIzu " from all frames (staging buffer).", FreedMemory);
 			}
 		}
 		FreedMemory = 0;
@@ -2073,7 +2144,7 @@ protected:
 			m_pBufferMemoryUsage->store(m_pBufferMemoryUsage->load(std::memory_order_relaxed) - FreedMemory, std::memory_order_relaxed);
 			if(IsVerbose())
 			{
-				dbg_msg("vulkan", "deallocated chunks of memory with size: %" PRIzu " from all frames (buffer)", FreedMemory);
+				log_debug("gfx/vulkan", "Deallocated chunks of memory with size %" PRIzu " from all frames (buffer).", FreedMemory);
 			}
 		}
 		FreedMemory = 0;
@@ -2084,7 +2155,7 @@ protected:
 			m_pTextureMemoryUsage->store(m_pTextureMemoryUsage->load(std::memory_order_relaxed) - FreedMemory, std::memory_order_relaxed);
 			if(IsVerbose())
 			{
-				dbg_msg("vulkan", "deallocated chunks of memory with size: %" PRIzu " from all frames (texture)", FreedMemory);
+				log_debug("gfx/vulkan", "Deallocated chunks of memory with size %" PRIzu " from all frames (texture).", FreedMemory);
 			}
 		}
 	}
@@ -2336,7 +2407,7 @@ protected:
 			m_RecreateSwapChain = false;
 			if(IsVerbose())
 			{
-				dbg_msg("vulkan", "recreating swap chain requested by user (prepare frame).");
+				log_debug("gfx/vulkan", "Recreating swap chain requested by user (prepare frame).");
 			}
 			RecreateSwapChain();
 		}
@@ -2349,16 +2420,13 @@ protected:
 				m_RecreateSwapChain = false;
 				if(IsVerbose())
 				{
-					dbg_msg("vulkan", "recreating swap chain requested by acquire next image (prepare frame).");
+					log_debug("gfx/vulkan", "Recreating swap chain requested by acquire next image (prepare frame).");
 				}
 				RecreateSwapChain();
 				return PrepareFrame();
 			}
 			else
 			{
-				if(AcqResult != VK_SUBOPTIMAL_KHR)
-					dbg_msg("vulkan", "acquire next image failed %d", (int)AcqResult);
-
 				const char *pCritErrorMsg = CheckVulkanCriticalError(AcqResult);
 				if(pCritErrorMsg != nullptr)
 				{
@@ -2507,6 +2575,8 @@ protected:
 
 		if(Tex.m_RescaleCount > 0)
 		{
+			const size_t OldWidth = Width;
+			const size_t OldHeight = Height;
 			for(uint32_t i = 0; i < Tex.m_RescaleCount; ++i)
 			{
 				Width >>= 1;
@@ -2516,7 +2586,7 @@ protected:
 				YOff /= 2;
 			}
 
-			uint8_t *pTmpData = ResizeImage(pData, Width, Height, Width, Height, VulkanFormatToPixelSize(Format));
+			uint8_t *pTmpData = ResizeImage(pData, OldWidth, OldHeight, Width, Height, VulkanFormatToPixelSize(Format));
 			free(pData);
 			pData = pTmpData;
 		}
@@ -2563,6 +2633,8 @@ protected:
 		uint32_t RescaleCount = 0;
 		if((size_t)Width > m_MaxTextureSize || (size_t)Height > m_MaxTextureSize)
 		{
+			const size_t OldWidth = Width;
+			const size_t OldHeight = Height;
 			do
 			{
 				Width >>= 1;
@@ -2570,7 +2642,7 @@ protected:
 				++RescaleCount;
 			} while((size_t)Width > m_MaxTextureSize || (size_t)Height > m_MaxTextureSize);
 
-			uint8_t *pTmpData = ResizeImage(pData, Width, Height, Width, Height, PixelSize);
+			uint8_t *pTmpData = ResizeImage(pData, OldWidth, OldHeight, Width, Height, PixelSize);
 			free(pData);
 			pData = pTmpData;
 		}
@@ -2614,18 +2686,18 @@ protected:
 
 		if(Requires2DTextureArray)
 		{
-			int Image3DWidth = Width;
-			int Image3DHeight = Height;
-
 			int ConvertWidth = Width;
 			int ConvertHeight = Height;
 
 			if(ConvertWidth == 0 || (ConvertWidth % 16) != 0 || ConvertHeight == 0 || (ConvertHeight % 16) != 0)
 			{
-				dbg_msg("vulkan", "3D/2D array texture was resized");
-				int NewWidth = maximum<int>(HighestBit(ConvertWidth), 16);
-				int NewHeight = maximum<int>(HighestBit(ConvertHeight), 16);
+				int NewWidth = std::max(HighestBit(ConvertWidth), 16);
+				int NewHeight = std::max(HighestBit(ConvertHeight), 16);
 				uint8_t *pNewTexData = ResizeImage(pData, ConvertWidth, ConvertHeight, NewWidth, NewHeight, PixelSize);
+				if(IsVerbose())
+				{
+					log_debug("gfx/vulkan", "3D/2D array texture was resized. Slot=%d Size=(%d, %d) Resized=(%d, %d)", Slot, ConvertWidth, ConvertHeight, NewWidth, NewHeight);
+				}
 
 				ConvertWidth = NewWidth;
 				ConvertHeight = NewHeight;
@@ -2634,40 +2706,31 @@ protected:
 				pData = pNewTexData;
 			}
 
-			bool Needs3DTexDel = false;
+			int Image3DWidth, Image3DHeight;
 			uint8_t *pTexData3D = static_cast<uint8_t *>(malloc((size_t)PixelSize * ConvertWidth * ConvertHeight));
-			if(!Texture2DTo3D(pData, ConvertWidth, ConvertHeight, PixelSize, 16, 16, pTexData3D, Image3DWidth, Image3DHeight))
+			Texture2DTo3D(pData, ConvertWidth, ConvertHeight, PixelSize, 16, 16, pTexData3D, Image3DWidth, Image3DHeight);
+
+			const size_t ImageDepth2DArray = (size_t)16 * 16;
+			VkExtent3D ImgSize{(uint32_t)Image3DWidth, (uint32_t)Image3DHeight, 1};
+			if(RequiresMipMaps)
 			{
-				free(pTexData3D);
-				pTexData3D = nullptr;
+				MipMapLevelCount = ImageMipLevelCount(ImgSize);
+				if(!m_OptimalRGBAImageBlitting)
+					MipMapLevelCount = 1;
 			}
-			Needs3DTexDel = true;
 
-			if(pTexData3D != nullptr)
-			{
-				const size_t ImageDepth2DArray = (size_t)16 * 16;
-				VkExtent3D ImgSize{(uint32_t)Image3DWidth, (uint32_t)Image3DHeight, 1};
-				if(RequiresMipMaps)
-				{
-					MipMapLevelCount = ImageMipLevelCount(ImgSize);
-					if(!m_OptimalRGBAImageBlitting)
-						MipMapLevelCount = 1;
-				}
+			if(!CreateTextureImage(ImageIndex, Texture.m_Img3D, Texture.m_Img3DMem, pTexData3D, Format, Image3DWidth, Image3DHeight, ImageDepth2DArray, PixelSize, MipMapLevelCount))
+				return false;
+			VkFormat ImgFormat = Format;
+			VkImageView ImgView = CreateTextureImageView(Texture.m_Img3D, ImgFormat, VK_IMAGE_VIEW_TYPE_2D_ARRAY, ImageDepth2DArray, MipMapLevelCount);
+			Texture.m_Img3DView = ImgView;
+			VkSampler ImgSampler = GetTextureSampler(SUPPORTED_SAMPLER_TYPE_2D_TEXTURE_ARRAY);
+			Texture.m_Sampler3D = ImgSampler;
 
-				if(!CreateTextureImage(ImageIndex, Texture.m_Img3D, Texture.m_Img3DMem, pTexData3D, Format, Image3DWidth, Image3DHeight, ImageDepth2DArray, PixelSize, MipMapLevelCount))
-					return false;
-				VkFormat ImgFormat = Format;
-				VkImageView ImgView = CreateTextureImageView(Texture.m_Img3D, ImgFormat, VK_IMAGE_VIEW_TYPE_2D_ARRAY, ImageDepth2DArray, MipMapLevelCount);
-				Texture.m_Img3DView = ImgView;
-				VkSampler ImgSampler = GetTextureSampler(SUPPORTED_SAMPLER_TYPE_2D_TEXTURE_ARRAY);
-				Texture.m_Sampler3D = ImgSampler;
+			if(!CreateNew3DTexturedStandardDescriptorSets(ImageIndex))
+				return false;
 
-				if(!CreateNew3DTexturedStandardDescriptorSets(ImageIndex))
-					return false;
-
-				if(Needs3DTexDel)
-					free(pTexData3D);
-			}
+			free(pTexData3D);
 		}
 		return true;
 	}
@@ -2815,7 +2878,7 @@ protected:
 
 		if(vkCreateSampler(m_VKDevice, &SamplerInfo, nullptr, &CreatedSampler) != VK_SUCCESS)
 		{
-			dbg_msg("vulkan", "failed to create texture sampler!");
+			log_error("gfx/vulkan", "Failed to create texture sampler.");
 			return false;
 		}
 		return true;
@@ -2883,7 +2946,8 @@ protected:
 
 		if(vkCreateImage(m_VKDevice, &ImageInfo, nullptr, &Image) != VK_SUCCESS)
 		{
-			dbg_msg("vulkan", "failed to create image!");
+			log_error("gfx/vulkan", "Failed to create image.");
+			return false;
 		}
 
 		VkMemoryRequirements MemRequirements;
@@ -2986,7 +3050,7 @@ protected:
 		}
 		else
 		{
-			dbg_msg("vulkan", "unsupported layout transition!");
+			dbg_assert_failed("Unsupported layout transition. OldLayout=%d NewLayout=%d", (int)OldLayout, (int)NewLayout);
 		}
 
 		vkCmdPipelineBarrier(
@@ -3524,6 +3588,11 @@ public:
 	{
 		std::set<std::string> OurExt;
 		OurExt.emplace(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
+#ifdef VK_EXT_device_fault
+		// Only used when actually supported by the device (see device creation);
+		// enables detailed diagnostics after a VK_ERROR_DEVICE_LOST.
+		OurExt.emplace(VK_EXT_DEVICE_FAULT_EXTENSION_NAME);
+#endif
 		return OurExt;
 	}
 
@@ -3540,10 +3609,10 @@ public:
 	[[nodiscard]] bool GetVulkanLayers(std::vector<std::string> &vVKLayers)
 	{
 		uint32_t LayerCount = 0;
-		VkResult Res = vkEnumerateInstanceLayerProperties(&LayerCount, NULL);
+		VkResult Res = vkEnumerateInstanceLayerProperties(&LayerCount, nullptr);
 		if(Res != VK_SUCCESS)
 		{
-			SetError(EGfxErrorType::GFX_ERROR_TYPE_INIT, "Could not get vulkan layers.");
+			SetError(EGfxErrorType::GFX_ERROR_TYPE_INIT, "Could not get Vulkan layers.");
 			return false;
 		}
 
@@ -3551,7 +3620,7 @@ public:
 		Res = vkEnumerateInstanceLayerProperties(&LayerCount, vVKInstanceLayers.data());
 		if(Res != VK_SUCCESS)
 		{
-			SetError(EGfxErrorType::GFX_ERROR_TYPE_INIT, "Could not get vulkan layers.");
+			SetError(EGfxErrorType::GFX_ERROR_TYPE_INIT, "Could not get Vulkan layers.");
 			return false;
 		}
 
@@ -3606,7 +3675,7 @@ public:
 
 		VkApplicationInfo VKAppInfo = {};
 		VKAppInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-		VKAppInfo.pNext = NULL;
+		VKAppInfo.pNext = nullptr;
 		VKAppInfo.pApplicationName = "DDNet";
 		VKAppInfo.applicationVersion = 1;
 		VKAppInfo.pEngineName = "DDNet-Vulkan";
@@ -3639,7 +3708,7 @@ public:
 
 		bool TryAgain = false;
 
-		VkResult Res = vkCreateInstance(&VKInstanceInfo, NULL, &m_VKInstance);
+		VkResult Res = vkCreateInstance(&VKInstanceInfo, nullptr, &m_VKInstance);
 		const char *pCritErrorMsg = CheckVulkanCriticalError(Res);
 		if(pCritErrorMsg != nullptr)
 		{
@@ -3647,7 +3716,9 @@ public:
 			return false;
 		}
 		else if(Res == VK_ERROR_LAYER_NOT_PRESENT || Res == VK_ERROR_EXTENSION_NOT_PRESENT)
+		{
 			TryAgain = true;
+		}
 
 		if(TryAgain && TryDebugExtensions)
 			return CreateVulkanInstance(vVKLayers, vVKExtensions, false);
@@ -3669,23 +3740,57 @@ public:
 		return STWGraphicGpu::ETWGraphicsGpuType::GRAPHICS_GPU_TYPE_CPU;
 	}
 
-	// from: https://github.com/SaschaWillems/vulkan.gpuinfo.org/blob/5c3986798afc39d736b825bf8a5fbf92b8d9ed49/includes/functions.php#L364
-	const char *GetDriverVersion(char (&aBuff)[256], uint32_t DriverVersion, uint32_t VendorId)
+	static void GetVendorString(uint32_t VendorId, char *pVendorStr, size_t Size)
 	{
-		// NVIDIA
-		if(VendorId == 4318)
+		switch(VendorId)
 		{
-			str_format(aBuff, std::size(aBuff), "%d.%d.%d.%d",
+		case 0x1002:
+		case 0x1022:
+			str_copy(pVendorStr, "AMD", Size);
+			break;
+		case 0x1010:
+			str_copy(pVendorStr, "ImgTec", Size);
+			break;
+		case 0x106B:
+			str_copy(pVendorStr, "Apple", Size);
+			break;
+		case 0x10DE:
+			str_copy(pVendorStr, "NVIDIA", Size);
+			break;
+		case 0x13B5:
+			str_copy(pVendorStr, "ARM", Size);
+			break;
+		case 0x5143:
+			str_copy(pVendorStr, "Qualcomm", Size);
+			break;
+		case 0x8086:
+			str_copy(pVendorStr, "Intel", Size);
+			break;
+		case 0x10005:
+			str_copy(pVendorStr, "Mesa", Size);
+			break;
+		default:
+			log_warn("gfx/vulkan", "Unknown GPU vendor ID %08X.", VendorId);
+			str_format(pVendorStr, Size, "Unknown (%08X)", VendorId);
+			break;
+		}
+	}
+
+	// from: https://github.com/SaschaWillems/vulkan.gpuinfo.org/blob/5c3986798afc39d736b825bf8a5fbf92b8d9ed49/includes/functions.php#L364
+	void FormatDriverVersion(char (&aDriverVersion)[256], uint32_t DriverVersion, uint32_t VendorId)
+	{
+		if(VendorId == 0x10DE) // NVIDIA
+		{
+			str_format(aDriverVersion, std::size(aDriverVersion), "%d.%d.%d.%d",
 				(DriverVersion >> 22) & 0x3ff,
 				(DriverVersion >> 14) & 0x0ff,
 				(DriverVersion >> 6) & 0x0ff,
 				(DriverVersion) & 0x003f);
 		}
 #ifdef CONF_FAMILY_WINDOWS
-		// windows only
-		else if(VendorId == 0x8086)
+		else if(VendorId == 0x8086) // Windows with Intel only
 		{
-			str_format(aBuff, std::size(aBuff),
+			str_format(aDriverVersion, std::size(aDriverVersion),
 				"%d.%d",
 				(DriverVersion >> 14),
 				(DriverVersion) & 0x3fff);
@@ -3694,14 +3799,12 @@ public:
 		else
 		{
 			// Use Vulkan version conventions if vendor mapping is not available
-			str_format(aBuff, std::size(aBuff),
+			str_format(aDriverVersion, std::size(aDriverVersion),
 				"%d.%d.%d",
 				(DriverVersion >> 22),
 				(DriverVersion >> 12) & 0x3ff,
 				DriverVersion & 0xfff);
 		}
-
-		return aBuff;
 	}
 
 	[[nodiscard]] bool SelectGpu(char *pRendererName, char *pVendorName, char *pVersionName)
@@ -3715,7 +3818,7 @@ public:
 		}
 		if(DevicesCount == 0)
 		{
-			SetError(EGfxErrorType::GFX_ERROR_TYPE_INIT, "No vulkan compatible devices found.");
+			SetError(EGfxErrorType::GFX_ERROR_TYPE_INIT, "No Vulkan compatible devices found.");
 			return false;
 		}
 
@@ -3728,7 +3831,7 @@ public:
 		}
 		if(DevicesCount == 0)
 		{
-			SetWarning(EGfxWarningType::GFX_WARNING_TYPE_INIT_FAILED_MISSING_INTEGRATED_GPU_DRIVER, "No vulkan compatible devices found.");
+			SetWarning(EGfxWarningType::GFX_WARNING_TYPE_INIT_FAILED_MISSING_INTEGRATED_GPU_DRIVER, "No Vulkan compatible devices found.");
 			return false;
 		}
 		// make sure to use the correct amount of devices available
@@ -3760,7 +3863,7 @@ public:
 			int DevApiPatch = (int)VK_API_VERSION_PATCH(DeviceProp.apiVersion);
 
 			auto IsDenied = CCommandProcessorFragment_Vulkan::IsGpuDenied(DeviceProp.vendorID, DeviceProp.driverVersion, DevApiMajor, DevApiMinor, DevApiPatch);
-			if((DevApiMajor > gs_BackendVulkanMajor || (DevApiMajor == gs_BackendVulkanMajor && DevApiMinor >= gs_BackendVulkanMinor)) && !IsDenied)
+			if((DevApiMajor > BACKEND_VULKAN_VERSION_MAJOR || (DevApiMajor == BACKEND_VULKAN_VERSION_MAJOR && DevApiMinor >= BACKEND_VULKAN_VERSION_MINOR)) && !IsDenied)
 			{
 				STWGraphicGpu::STWGraphicGpuItem NewGpu;
 				str_copy(NewGpu.m_aName, DeviceProp.deviceName);
@@ -3792,7 +3895,7 @@ public:
 
 		if(m_pGpuList->m_vGpus.empty())
 		{
-			SetWarning(EGfxWarningType::GFX_WARNING_TYPE_INIT_FAILED_NO_DEVICE_WITH_REQUIRED_VERSION, "No devices with required vulkan version found.");
+			SetWarning(EGfxWarningType::GFX_WARNING_TYPE_INIT_FAILED_NO_DEVICE_WITH_REQUIRED_VERSION, "No devices with required Vulkan version found.");
 			return false;
 		}
 
@@ -3803,43 +3906,12 @@ public:
 			int DevApiMinor = (int)VK_API_VERSION_MINOR(DeviceProp.apiVersion);
 			int DevApiPatch = (int)VK_API_VERSION_PATCH(DeviceProp.apiVersion);
 
-			str_copy(pRendererName, DeviceProp.deviceName, gs_GpuInfoStringSize);
-			const char *pVendorNameStr = NULL;
-			switch(DeviceProp.vendorID)
-			{
-			case 0x1002:
-				pVendorNameStr = "AMD";
-				break;
-			case 0x1010:
-				pVendorNameStr = "ImgTec";
-				break;
-			case 0x106B:
-				pVendorNameStr = "Apple";
-				break;
-			case 0x10DE:
-				pVendorNameStr = "NVIDIA";
-				break;
-			case 0x13B5:
-				pVendorNameStr = "ARM";
-				break;
-			case 0x5143:
-				pVendorNameStr = "Qualcomm";
-				break;
-			case 0x8086:
-				pVendorNameStr = "INTEL";
-				break;
-			case 0x10005:
-				pVendorNameStr = "Mesa";
-				break;
-			default:
-				dbg_msg("vulkan", "unknown gpu vendor %u", DeviceProp.vendorID);
-				pVendorNameStr = "unknown";
-				break;
-			}
-
-			char aBuff[256];
-			str_copy(pVendorName, pVendorNameStr, gs_GpuInfoStringSize);
-			str_format(pVersionName, gs_GpuInfoStringSize, "Vulkan %d.%d.%d (driver: %s)", DevApiMajor, DevApiMinor, DevApiPatch, GetDriverVersion(aBuff, DeviceProp.driverVersion, DeviceProp.vendorID));
+			str_copy(pRendererName, DeviceProp.deviceName, GPU_INFO_STRING_SIZE);
+			GetVendorString(DeviceProp.vendorID, pVendorName, GPU_INFO_STRING_SIZE);
+			char aDriverVersion[256];
+			FormatDriverVersion(aDriverVersion, DeviceProp.driverVersion, DeviceProp.vendorID);
+			str_format(pVersionName, GPU_INFO_STRING_SIZE, "Vulkan %d.%d.%d (driver: %s)",
+				DevApiMajor, DevApiMinor, DevApiPatch, aDriverVersion);
 
 			// get important device limits
 			m_NonCoherentMemAlignment = DeviceProp.limits.nonCoherentAtomSize;
@@ -3852,8 +3924,10 @@ public:
 
 			if(IsVerbose())
 			{
-				dbg_msg("vulkan", "device prop: non-coherent align: %" PRIzu ", optimal image copy align: %" PRIzu ", max texture size: %u, max sampler anisotropy: %u", (size_t)m_NonCoherentMemAlignment, (size_t)m_OptimalImageCopyMemAlignment, m_MaxTextureSize, m_MaxSamplerAnisotropy);
-				dbg_msg("vulkan", "device prop: min uniform align: %u, multi sample: %u", m_MinUniformAlign, (uint32_t)m_MaxMultiSample);
+				log_debug("gfx/vulkan", "Device prop: non-coherent align: %" PRIzu ", optimal image copy align: %" PRIzu ", max texture size: %u, max sampler anisotropy: %u",
+					(size_t)m_NonCoherentMemAlignment, (size_t)m_OptimalImageCopyMemAlignment, m_MaxTextureSize, m_MaxSamplerAnisotropy);
+				log_debug("gfx/vulkan", "Device prop: min uniform align: %u, multi sample: %u",
+					m_MinUniformAlign, (uint32_t)m_MaxMultiSample);
 			}
 		}
 
@@ -3863,7 +3937,7 @@ public:
 		vkGetPhysicalDeviceQueueFamilyProperties(CurDevice, &FamQueueCount, nullptr);
 		if(FamQueueCount == 0)
 		{
-			SetError(EGfxErrorType::GFX_ERROR_TYPE_INIT, "No vulkan queue family properties found.");
+			SetError(EGfxErrorType::GFX_ERROR_TYPE_INIT, "No Vulkan queue family properties found.");
 			return false;
 		}
 
@@ -3885,7 +3959,7 @@ public:
 
 		if(QueueNodeIndex == std::numeric_limits<uint32_t>::max())
 		{
-			SetError(EGfxErrorType::GFX_ERROR_TYPE_INIT, "No vulkan queue found that matches the requirements: graphics queue.");
+			SetError(EGfxErrorType::GFX_ERROR_TYPE_INIT, "No Vulkan queue found that matches the requirements: graphics queue.");
 			return false;
 		}
 
@@ -3902,14 +3976,14 @@ public:
 			vLayerCNames.emplace_back(Layer.c_str());
 
 		uint32_t DevPropCount = 0;
-		if(vkEnumerateDeviceExtensionProperties(m_VKGPU, NULL, &DevPropCount, NULL) != VK_SUCCESS)
+		if(vkEnumerateDeviceExtensionProperties(m_VKGPU, nullptr, &DevPropCount, nullptr) != VK_SUCCESS)
 		{
 			SetError(EGfxErrorType::GFX_ERROR_TYPE_INIT, "Querying logical device extension properties failed.");
 			return false;
 		}
 
 		std::vector<VkExtensionProperties> vDevPropList(DevPropCount);
-		if(vkEnumerateDeviceExtensionProperties(m_VKGPU, NULL, &DevPropCount, vDevPropList.data()) != VK_SUCCESS)
+		if(vkEnumerateDeviceExtensionProperties(m_VKGPU, nullptr, &DevPropCount, vDevPropList.data()) != VK_SUCCESS)
 		{
 			SetError(EGfxErrorType::GFX_ERROR_TYPE_INIT, "Querying logical device extension properties failed.");
 			return false;
@@ -3926,13 +4000,40 @@ public:
 			}
 		}
 
+#ifdef VK_EXT_device_fault
+		bool DeviceFaultRequested = false;
+		for(const char *pDevExt : vDevPropCNames)
+		{
+			if(str_comp(pDevExt, VK_EXT_DEVICE_FAULT_EXTENSION_NAME) == 0)
+			{
+				DeviceFaultRequested = true;
+				break;
+			}
+		}
+
+		VkPhysicalDeviceFaultFeaturesEXT FaultFeatures = {};
+		FaultFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FAULT_FEATURES_EXT;
+		if(DeviceFaultRequested)
+		{
+			auto pfnGetPhysicalDeviceFeatures2 = (PFN_vkGetPhysicalDeviceFeatures2)vkGetInstanceProcAddr(m_VKInstance, "vkGetPhysicalDeviceFeatures2");
+			if(pfnGetPhysicalDeviceFeatures2 != nullptr)
+			{
+				// The extension's core deviceFault feature must be enabled explicitly.
+				VkPhysicalDeviceFeatures2 PhysFeatures2 = {};
+				PhysFeatures2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+				PhysFeatures2.pNext = &FaultFeatures;
+				pfnGetPhysicalDeviceFeatures2(m_VKGPU, &PhysFeatures2);
+			}
+		}
+#endif
+
 		VkDeviceQueueCreateInfo VKQueueCreateInfo;
 		VKQueueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
 		VKQueueCreateInfo.queueFamilyIndex = m_VKGraphicsQueueIndex;
 		VKQueueCreateInfo.queueCount = 1;
 		float QueuePrio = 1.0f;
 		VKQueueCreateInfo.pQueuePriorities = &QueuePrio;
-		VKQueueCreateInfo.pNext = NULL;
+		VKQueueCreateInfo.pNext = nullptr;
 		VKQueueCreateInfo.flags = 0;
 
 		VkDeviceCreateInfo VKCreateInfo;
@@ -3943,15 +4044,35 @@ public:
 		VKCreateInfo.enabledLayerCount = static_cast<uint32_t>(vLayerCNames.size());
 		VKCreateInfo.ppEnabledExtensionNames = vDevPropCNames.data();
 		VKCreateInfo.enabledExtensionCount = static_cast<uint32_t>(vDevPropCNames.size());
-		VKCreateInfo.pNext = NULL;
-		VKCreateInfo.pEnabledFeatures = NULL;
+		VKCreateInfo.pNext = nullptr;
+		VKCreateInfo.pEnabledFeatures = nullptr;
 		VKCreateInfo.flags = 0;
+
+#ifdef VK_EXT_device_fault
+		if(DeviceFaultRequested && FaultFeatures.deviceFault)
+		{
+			FaultFeatures.pNext = nullptr;
+			// We never read the vendor binary crash dump, so do not opt into generating it.
+			FaultFeatures.deviceFaultVendorBinary = VK_FALSE;
+			VKCreateInfo.pNext = &FaultFeatures;
+		}
+#endif
 
 		if(vkCreateDevice(m_VKGPU, &VKCreateInfo, nullptr, &m_VKDevice) != VK_SUCCESS)
 		{
 			SetError(EGfxErrorType::GFX_ERROR_TYPE_INIT, "Logical device could not be created.");
 			return false;
 		}
+
+#ifdef VK_EXT_device_fault
+		if(DeviceFaultRequested && FaultFeatures.deviceFault)
+		{
+			m_pfnGetDeviceFaultInfoEXT = (PFN_vkGetDeviceFaultInfoEXT)vkGetDeviceProcAddr(m_VKDevice, "vkGetDeviceFaultInfoEXT");
+			m_DeviceFaultAvailable = m_pfnGetDeviceFaultInfoEXT != nullptr;
+			if(m_DeviceFaultAvailable)
+				log_debug("gfx/vulkan", "VK_EXT_device_fault enabled; detailed fault info will be logged on device loss.");
+		}
+#endif
 
 		return true;
 	}
@@ -3960,8 +4081,8 @@ public:
 	{
 		if(!SDL_Vulkan_CreateSurface(pWindow, m_VKInstance, &m_VKPresentSurface))
 		{
-			dbg_msg("vulkan", "error from sdl: %s", SDL_GetError());
-			SetError(EGfxErrorType::GFX_ERROR_TYPE_INIT, "Creating a vulkan surface for the SDL window failed.");
+			log_error("gfx/vulkan", "Failed to create surface. SDL error: %s", SDL_GetError());
+			SetError(EGfxErrorType::GFX_ERROR_TYPE_INIT, "Creating a Vulkan surface for the SDL window failed.");
 			return false;
 		}
 
@@ -3969,7 +4090,7 @@ public:
 		vkGetPhysicalDeviceSurfaceSupportKHR(m_VKGPU, m_VKGraphicsQueueIndex, m_VKPresentSurface, &IsSupported);
 		if(!IsSupported)
 		{
-			SetError(EGfxErrorType::GFX_ERROR_TYPE_INIT, "The device surface does not support presenting the framebuffer to a screen. (maybe the wrong GPU was selected?)");
+			SetError(EGfxErrorType::GFX_ERROR_TYPE_INIT, "The device surface does not support presenting the framebuffer to a screen. Maybe the wrong GPU was selected?");
 			return false;
 		}
 
@@ -3984,7 +4105,7 @@ public:
 	[[nodiscard]] bool GetPresentationMode(VkPresentModeKHR &VKIOMode)
 	{
 		uint32_t PresentModeCount = 0;
-		if(vkGetPhysicalDeviceSurfacePresentModesKHR(m_VKGPU, m_VKPresentSurface, &PresentModeCount, NULL) != VK_SUCCESS)
+		if(vkGetPhysicalDeviceSurfacePresentModesKHR(m_VKGPU, m_VKPresentSurface, &PresentModeCount, nullptr) != VK_SUCCESS)
 		{
 			SetError(EGfxErrorType::GFX_ERROR_TYPE_INIT, "The device surface presentation modes could not be fetched.");
 			return false;
@@ -4004,7 +4125,7 @@ public:
 				return true;
 		}
 
-		dbg_msg("vulkan", "warning: requested presentation mode was not available. falling back to mailbox / fifo relaxed.");
+		log_warn("gfx/vulkan", "Requested presentation mode was not available. Falling back to mailbox / FIFO relaxed.");
 		VKIOMode = g_Config.m_GfxVsync ? VK_PRESENT_MODE_FIFO_RELAXED_KHR : VK_PRESENT_MODE_MAILBOX_KHR;
 		for(const auto &Mode : vPresentModeList)
 		{
@@ -4012,7 +4133,7 @@ public:
 				return true;
 		}
 
-		dbg_msg("vulkan", "warning: requested presentation mode was not available. using first available.");
+		log_warn("gfx/vulkan", "Requested presentation mode was not available. Using first available.");
 		if(PresentModeCount > 0)
 			VKIOMode = vPresentModeList[0];
 
@@ -4034,7 +4155,7 @@ public:
 		uint32_t ImgNumber = VKCapabilities.minImageCount + 1;
 		if(IsVerbose())
 		{
-			dbg_msg("vulkan", "minimal swap image count %u", VKCapabilities.minImageCount);
+			log_debug("gfx/vulkan", "Minimal swap image count: %u", VKCapabilities.minImageCount);
 		}
 		return (VKCapabilities.maxImageCount > 0 && ImgNumber > VKCapabilities.maxImageCount) ? VKCapabilities.maxImageCount : ImgNumber;
 	}
@@ -4123,14 +4244,14 @@ public:
 
 		if(Res == VK_INCOMPLETE)
 		{
-			dbg_msg("vulkan", "warning: not all surface formats are requestable with your current settings.");
+			log_warn("gfx/vulkan", "Not all surface formats are requestable with your current settings.");
 		}
 
 		if(vSurfFormatList.size() == 1 && vSurfFormatList[0].format == VK_FORMAT_UNDEFINED)
 		{
 			m_VKSurfFormat.format = VK_FORMAT_B8G8R8A8_UNORM;
 			m_VKSurfFormat.colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
-			dbg_msg("vulkan", "warning: surface format was undefined. This can potentially cause bugs.");
+			log_warn("gfx/vulkan", "Surface format was undefined. This can potentially cause bugs.");
 			return true;
 		}
 
@@ -4148,7 +4269,7 @@ public:
 			}
 		}
 
-		dbg_msg("vulkan", "warning: surface format was not RGBA(or variants of it). This can potentially cause weird looking images(too bright etc.).");
+		log_warn("gfx/vulkan", "Surface format was not RGBA (or variants of it). This can potentially cause weird looking images (too bright etc.).");
 		m_VKSurfFormat = vSurfFormatList[0];
 		return true;
 	}
@@ -4207,7 +4328,9 @@ public:
 			return false;
 		}
 		else if(SwapchainCreateRes == VK_ERROR_NATIVE_WINDOW_IN_USE_KHR)
+		{
 			return false;
+		}
 
 		return true;
 	}
@@ -4258,11 +4381,11 @@ public:
 	{
 		if((MessageSeverity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT) != 0)
 		{
-			dbg_msg("vulkan_debug", "validation error: %s", pCallbackData->pMessage);
+			log_error("gfx/vulkan", "Validation error: %s", pCallbackData->pMessage);
 		}
 		else
 		{
-			dbg_msg("vulkan_debug", "%s", pCallbackData->pMessage);
+			log_info("gfx/vulkan", "Validation info: %s", pCallbackData->pMessage);
 		}
 
 		return VK_FALSE;
@@ -4303,11 +4426,11 @@ public:
 		if(CreateDebugUtilsMessengerEXT(&CreateInfo, nullptr, &m_DebugMessenger) != VK_SUCCESS)
 		{
 			m_DebugMessenger = VK_NULL_HANDLE;
-			dbg_msg("vulkan", "didn't find vulkan debug layer.");
+			log_warn("gfx/vulkan", "Could not find Vulkan debug layer.");
 		}
 		else
 		{
-			dbg_msg("vulkan", "enabled vulkan debug context.");
+			log_info("gfx/vulkan", "Enabled Vulkan debug context.");
 		}
 #endif
 	}
@@ -5456,7 +5579,7 @@ public:
 			{
 				if(Texture.m_VKTextDescrSet.m_Descriptor != VK_NULL_HANDLE && IsVerbose())
 				{
-					dbg_msg("vulkan", "text textures not cleared over cmd.");
+					log_warn("gfx/vulkan", "Text textures were not cleared over command.");
 				}
 				DestroyTexture(Texture);
 			}
@@ -5552,7 +5675,7 @@ public:
 
 		if(IsVerbose())
 		{
-			dbg_msg("vulkan", "recreating swap chain.");
+			log_info("gfx/vulkan", "Recreating swap chain.");
 		}
 
 		VkSwapchainKHR OldSwapChain = VK_NULL_HANDLE;
@@ -5584,7 +5707,7 @@ public:
 
 		if(Ret != 0 && IsVerbose())
 		{
-			dbg_msg("vulkan", "recreating swap chain failed.");
+			log_warn("gfx/vulkan", "Recreating swap chain failed.");
 		}
 
 		return Ret;
@@ -5613,7 +5736,7 @@ public:
 
 			for(auto &VKLayer : vVKLayers)
 			{
-				dbg_msg("vulkan", "Validation layer: %s", VKLayer.c_str());
+				log_info("gfx/vulkan", "Validation layer: %s", VKLayer.c_str());
 			}
 		}
 
@@ -5675,11 +5798,11 @@ public:
 
 		VKBufferMemory.m_Size = MemRequirements.size;
 
-		if(MemUsage == MEMORY_BLOCK_USAGE_BUFFER)
+		if(MemUsage == EMemoryBlockUsage::BUFFER)
 			m_pBufferMemoryUsage->store(m_pBufferMemoryUsage->load(std::memory_order_relaxed) + MemRequirements.size, std::memory_order_relaxed);
-		else if(MemUsage == MEMORY_BLOCK_USAGE_STAGING)
+		else if(MemUsage == EMemoryBlockUsage::STAGING)
 			m_pStagingMemoryUsage->store(m_pStagingMemoryUsage->load(std::memory_order_relaxed) + MemRequirements.size, std::memory_order_relaxed);
-		else if(MemUsage == MEMORY_BLOCK_USAGE_STREAM)
+		else if(MemUsage == EMemoryBlockUsage::STREAM)
 			m_pStreamMemoryUsage->store(m_pStreamMemoryUsage->load(std::memory_order_relaxed) + MemRequirements.size, std::memory_order_relaxed);
 
 		if(IsVerbose())
@@ -5748,15 +5871,14 @@ public:
 			UniformBufferDescrPool.m_DefaultAllocSize = 512;
 		}
 
-		bool Ret = AllocateDescriptorPool(m_StandardTextureDescrPool, CCommandBuffer::MAX_TEXTURES);
-		Ret |= AllocateDescriptorPool(m_TextTextureDescrPool, 8);
-
+		bool Success = true;
+		Success &= AllocateDescriptorPool(m_StandardTextureDescrPool, CCommandBuffer::MAX_TEXTURES);
+		Success &= AllocateDescriptorPool(m_TextTextureDescrPool, 8);
 		for(auto &UniformBufferDescrPool : m_vUniformBufferDescrPools)
 		{
-			Ret |= AllocateDescriptorPool(UniformBufferDescrPool, 64);
+			Success &= AllocateDescriptorPool(UniformBufferDescrPool, 64);
 		}
-
-		return Ret;
+		return Success;
 	}
 
 	void DestroyDescriptorPools()
@@ -5822,7 +5944,7 @@ public:
 				if(!AllocateDescriptorPool(DescriptorPools, DescriptorPools.m_DefaultAllocSize))
 					return false;
 
-				AllocatedInThisRun = minimum((size_t)DescriptorPools.m_DefaultAllocSize, CurAllocNum);
+				AllocatedInThisRun = std::min((size_t)DescriptorPools.m_DefaultAllocSize, CurAllocNum);
 
 				auto &Pool = DescriptorPools.m_vPools.back();
 				Pool.m_CurSize += AllocatedInThisRun;
@@ -6324,7 +6446,7 @@ public:
 			SDeviceMemoryBlock StreamBufferMemory;
 			const VkDeviceSize NewBufferSingleSize = sizeof(TInstanceTypeName) * InstanceTypeCount;
 			const VkDeviceSize NewBufferSize = NewBufferSingleSize * BufferCreateCount;
-			if(!CreateBuffer(NewBufferSize, MEMORY_BLOCK_USAGE_STREAM, Usage, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_CACHED_BIT, StreamBuffer, StreamBufferMemory))
+			if(!CreateBuffer(NewBufferSize, EMemoryBlockUsage::STREAM, Usage, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_CACHED_BIT, StreamBuffer, StreamBufferMemory))
 				return false;
 
 			void *pMappedData = nullptr;
@@ -6415,7 +6537,7 @@ public:
 
 		SDeviceMemoryBlock VertexBufferMemory;
 		VkBuffer VertexBuffer;
-		if(!CreateBuffer(BufferDataSize, MEMORY_BLOCK_USAGE_BUFFER, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VertexBuffer, VertexBufferMemory))
+		if(!CreateBuffer(BufferDataSize, EMemoryBlockUsage::BUFFER, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VertexBuffer, VertexBufferMemory))
 			return false;
 
 		if(!MemoryBarrier(VertexBuffer, 0, BufferDataSize, VK_ACCESS_INDEX_READ_BIT, true))
@@ -6815,19 +6937,22 @@ public:
 		uint32_t Width;
 		uint32_t Height;
 		CImageInfo::EImageFormat Format;
+
 		if(GetPresentedImageDataImpl(Width, Height, Format, m_vScreenshotHelper, true, {}))
 		{
-			const size_t ImgSize = (size_t)Width * (size_t)Height * CImageInfo::PixelSize(Format);
-			pCommand->m_pImage->m_pData = static_cast<uint8_t *>(malloc(ImgSize));
-			mem_copy(pCommand->m_pImage->m_pData, m_vScreenshotHelper.data(), ImgSize);
+			pCommand->m_pImage->m_Width = (int)Width;
+			pCommand->m_pImage->m_Height = (int)Height;
+			pCommand->m_pImage->m_Format = Format;
+			pCommand->m_pImage->Allocate();
+			mem_copy(pCommand->m_pImage->m_pData, m_vScreenshotHelper.data(), pCommand->m_pImage->DataSize());
 		}
 		else
 		{
+			pCommand->m_pImage->m_Width = 0;
+			pCommand->m_pImage->m_Height = 0;
+			pCommand->m_pImage->m_Format = CImageInfo::FORMAT_UNDEFINED;
 			pCommand->m_pImage->m_pData = nullptr;
 		}
-		pCommand->m_pImage->m_Width = (int)Width;
-		pCommand->m_pImage->m_Height = (int)Height;
-		pCommand->m_pImage->m_Format = Format;
 
 		return true;
 	}
@@ -6863,7 +6988,7 @@ public:
 		{
 			if(IsVerbose())
 			{
-				dbg_msg("vulkan", "got resize event.");
+				log_debug("gfx/vulkan", "Got resize event.");
 			}
 			m_CanvasWidth = (uint32_t)pCommand->m_Width;
 			m_CanvasHeight = (uint32_t)pCommand->m_Height;
@@ -6878,11 +7003,9 @@ public:
 			{
 				m_HasDynamicViewport = true;
 
-				// convert viewport from OGL to vulkan
-				int32_t ViewportY = (int32_t)Viewport.height - ((int32_t)pCommand->m_Y + (int32_t)pCommand->m_Height);
-				uint32_t ViewportH = (int32_t)pCommand->m_Height;
-				m_DynamicViewportOffset = {(int32_t)pCommand->m_X, ViewportY};
-				m_DynamicViewportSize = {(uint32_t)pCommand->m_Width, ViewportH};
+				// The viewport rectangle and Vulkan both use a top left origin.
+				m_DynamicViewportOffset = {(int32_t)pCommand->m_X, (int32_t)pCommand->m_Y};
+				m_DynamicViewportSize = {(uint32_t)pCommand->m_Width, (uint32_t)pCommand->m_Height};
 			}
 			else
 			{
@@ -6897,7 +7020,7 @@ public:
 	{
 		if(IsVerbose())
 		{
-			dbg_msg("vulkan", "queueing swap chain recreation because vsync was changed");
+			log_info("gfx/vulkan", "Queueing swap chain recreation because V-Sync was changed.");
 		}
 		m_RecreateSwapChain = true;
 		*pCommand->m_pRetOk = true;
@@ -6909,7 +7032,7 @@ public:
 	{
 		if(IsVerbose())
 		{
-			dbg_msg("vulkan", "queueing swap chain recreation because multi sampling was changed");
+			log_info("gfx/vulkan", "Queueing swap chain recreation because multi sampling was changed.");
 		}
 		m_RecreateSwapChain = true;
 
@@ -7110,7 +7233,7 @@ public:
 
 		ExecBuffer.m_IndexBuffer = m_RenderIndexBuffer;
 
-		ExecBuffer.m_EstimatedRenderCallCount = ((pCommand->m_QuadNum - 1) / gs_GraphicsMaxQuadsRenderCount) + 1;
+		ExecBuffer.m_EstimatedRenderCallCount = ((pCommand->m_QuadNum - 1) / GRAPHICS_MAX_QUADS_RENDER_COUNT) + 1;
 
 		ExecBufferFillDynamicStates(pCommand->m_State, ExecBuffer);
 	}
@@ -7172,7 +7295,7 @@ public:
 			size_t RenderOffset = 0;
 			while(DrawCount > 0)
 			{
-				uint32_t RealDrawCount = (DrawCount > gs_GraphicsMaxQuadsRenderCount ? gs_GraphicsMaxQuadsRenderCount : DrawCount);
+				uint32_t RealDrawCount = (DrawCount > GRAPHICS_MAX_QUADS_RENDER_COUNT ? GRAPHICS_MAX_QUADS_RENDER_COUNT : DrawCount);
 				VkDeviceSize IndexOffset = (VkDeviceSize)((ptrdiff_t)(pCommand->m_QuadOffset + RenderOffset) * 6);
 
 				// create uniform buffer
@@ -7393,7 +7516,7 @@ public:
 
 	void Cmd_RenderQuadContainerAsSpriteMultiple_FillExecuteBuffer(SRenderCommandExecuteBuffer &ExecBuffer, const CCommandBuffer::SCommand_RenderQuadContainerAsSpriteMultiple *pCommand)
 	{
-		BufferContainer_FillExecuteBuffer(ExecBuffer, pCommand->m_State, (size_t)pCommand->m_BufferContainerIndex, ((pCommand->m_DrawCount - 1) / gs_GraphicsMaxParticlesRenderCount) + 1);
+		BufferContainer_FillExecuteBuffer(ExecBuffer, pCommand->m_State, (size_t)pCommand->m_BufferContainerIndex, ((pCommand->m_DrawCount - 1) / GRAPHICS_MAX_PARTICLES_RENDER_COUNT) + 1);
 	}
 
 	[[nodiscard]] bool Cmd_RenderQuadContainerAsSpriteMultiple(const CCommandBuffer::SCommand_RenderQuadContainerAsSpriteMultiple *pCommand, SRenderCommandExecuteBuffer &ExecBuffer)
@@ -7486,7 +7609,10 @@ public:
 
 	[[nodiscard]] bool Cmd_WindowCreateNtf(const CCommandBuffer::SCommand_WindowCreateNtf *pCommand)
 	{
-		log_debug("vulkan", "creating new surface.");
+		if(IsVerbose())
+		{
+			log_debug("gfx/vulkan", "Creating new surface.");
+		}
 		m_pWindow = SDL_GetWindowFromID(pCommand->m_WindowId);
 		if(m_RenderingPaused)
 		{
@@ -7507,7 +7633,10 @@ public:
 
 	[[nodiscard]] bool Cmd_WindowDestroyNtf(const CCommandBuffer::SCommand_WindowDestroyNtf *pCommand)
 	{
-		log_debug("vulkan", "surface got destroyed.");
+		if(IsVerbose())
+		{
+			log_debug("gfx/vulkan", "Surface got destroyed.");
+		}
 		if(!m_RenderingPaused)
 		{
 			if(!WaitFrame())
@@ -7534,10 +7663,12 @@ public:
 
 		m_ThreadCount = g_Config.m_GfxRenderThreadCount;
 		if(m_ThreadCount <= 1)
+		{
 			m_ThreadCount = 1;
+		}
 		else
 		{
-			m_ThreadCount = std::clamp<decltype(m_ThreadCount)>(m_ThreadCount, 3, std::max<decltype(m_ThreadCount)>(3, std::thread::hardware_concurrency()));
+			m_ThreadCount = std::clamp(m_ThreadCount, (size_t)3, std::max((size_t)3, (size_t)std::thread::hardware_concurrency()));
 		}
 
 		// start threads
@@ -7610,6 +7741,7 @@ public:
 
 	void RunThread(size_t ThreadIndex)
 	{
+		s_ThreadIsRenderWorker = true;
 		auto *pThread = m_vpRenderThreads[ThreadIndex].get();
 		std::unique_lock<std::mutex> Lock(pThread->m_Mutex);
 		pThread->m_Started = true;
@@ -7621,9 +7753,9 @@ public:
 			pThread->m_Cond.notify_one();
 
 			// set this to true, if you want to benchmark the render thread times
-			static constexpr bool s_BenchmarkRenderThreads = false;
+			static constexpr bool BENCHMARK_RENDER_THREADS = false;
 			std::chrono::nanoseconds ThreadRenderTime = 0ns;
-			if(IsVerbose() && s_BenchmarkRenderThreads)
+			if(IsVerbose() && BENCHMARK_RENDER_THREADS)
 			{
 				ThreadRenderTime = time_get_nanoseconds();
 			}
@@ -7649,9 +7781,9 @@ public:
 				}
 			}
 
-			if(IsVerbose() && s_BenchmarkRenderThreads)
+			if(IsVerbose() && BENCHMARK_RENDER_THREADS)
 			{
-				dbg_msg("vulkan", "render thread %" PRIzu " took %d ns to finish", ThreadIndex, (int)(time_get_nanoseconds() - ThreadRenderTime).count());
+				log_debug("gfx/vulkan", "Render thread %" PRIzu " took %" PRId64 " ns to finish.", ThreadIndex, (int64_t)(time_get_nanoseconds() - ThreadRenderTime).count());
 			}
 
 			pThread->m_IsRendering = false;

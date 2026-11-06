@@ -22,10 +22,13 @@ class CScoreboard : public CComponent
 			m_TeamStartX(0), m_TeamStartY(0), m_CurrentDDTeamSize(0) {}
 	};
 
-	void RenderTitle(CUIRect TitleBar, int Team, const char *pTitle);
+	void RenderTitleScore(CUIRect ScoreLabel, int Team, float TitleFontSize);
+	void RenderTitle(CUIRect TitleLabel, int Team, const char *pTitle, float TitleFontSize);
+	void RenderTitleBar(CUIRect TitleBar, int Team, const char *pTitle);
 	void RenderGoals(CUIRect Goals);
 	void RenderSpectators(CUIRect Spectators);
-	void RenderScoreboard(CUIRect Scoreboard, int Team, int CountStart, int CountEnd, CScoreboardRenderState &State);
+	void RenderMouseHint(CUIRect MouseHint);
+	void RenderScoreboard(CUIRect Scoreboard, int Team, int CountStart, int CountEnd, CScoreboardRenderState &State, int NumPlayersForSize = -1);
 	void RenderRecordingNotification(float x);
 
 	static void ConKeyScoreboard(IConsole::IResult *pResult, void *pUserData);
@@ -56,17 +59,46 @@ class CScoreboard : public CComponent
 		int m_ClientId;
 		bool m_IsLocal;
 		bool m_IsSpectating;
+
+		static CUi::EPopupMenuFunctionResult Render(void *pContext, CUIRect View, bool Active);
 	} m_ScoreboardPopupContext;
 
-	static CUi::EPopupMenuFunctionResult PopupScoreboard(void *pContext, CUIRect View, bool Active);
+	class CMapTitlePopupContext : public SPopupMenuId
+	{
+	public:
+		CScoreboard *m_pScoreboard = nullptr;
+
+		float m_FontSize;
+
+		static CUi::EPopupMenuFunctionResult Render(void *pContext, CUIRect View, bool Active);
+	} m_MapTitlePopupContext;
+	char m_MapTitleButtonId;
 
 	class CPlayerElement
 	{
 	public:
 		char m_PlayerButtonId;
+		char m_TimeTooltipId;
 		char m_SpectatorSecondLineButtonId;
+		char m_aTimeTooltip[32];
+
+		CCachedText m_Score;
+		CCachedText m_ScoreMillis;
+		CCachedText m_Name;
+		CCachedText m_ReadyMark;
+		CCachedText m_Clan;
+		CCachedText m_Ping;
 	};
 	CPlayerElement m_aPlayers[MAX_CLIENTS];
+
+	CCachedText m_TitleScore;
+	CCachedText m_TitleScoreMillis;
+	CCachedText m_HeadlineScore;
+	CCachedText m_HeadlineName;
+	CCachedText m_HeadlineClan;
+	CCachedText m_HeadlinePing;
+
+	void ResetTexts();
 
 public:
 	CScoreboard();
@@ -74,6 +106,8 @@ public:
 	void OnConsoleInit() override;
 	void OnInit() override;
 	void OnReset() override;
+	void OnShutdown() override;
+	void OnWindowResize() override;
 	void OnRender() override;
 	void OnRelease() override;
 	bool OnCursorMove(float x, float y, IInput::ECursorType CursorType) override;

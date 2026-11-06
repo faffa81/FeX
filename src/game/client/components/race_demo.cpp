@@ -2,7 +2,9 @@
 
 #include "race_demo.h"
 
-#include <base/system.h>
+#include <base/process.h>
+#include <base/str.h>
+#include <base/time.h>
 
 #include <engine/shared/config.h>
 #include <engine/storage.h>
@@ -11,7 +13,6 @@
 #include <game/client/race.h>
 #include <game/localization.h>
 
-#include <cctype>
 #include <chrono>
 
 using namespace std::chrono_literals;
@@ -36,14 +37,14 @@ CRaceDemo::CRaceDemo() :
 
 void CRaceDemo::GetPath(char *pBuf, int Size, int Time) const
 {
-	const char *pMap = Client()->GetCurrentMap();
+	const char *pMap = GameClient()->Map()->BaseName();
 
 	char aPlayerName[MAX_NAME_LENGTH];
 	str_copy(aPlayerName, Client()->PlayerName());
 	str_sanitize_filename(aPlayerName);
 
 	if(Time < 0)
-		str_format(pBuf, Size, "%s/%s_tmp_%d.demo", ms_pRaceDemoDir, pMap, pid());
+		str_format(pBuf, Size, "%s/%s_tmp_%d.demo", ms_pRaceDemoDir, pMap, process_id());
 	else if(g_Config.m_ClDemoName)
 		str_format(pBuf, Size, "%s/%s_%d.%03d_%s.demo", ms_pRaceDemoDir, pMap, Time / 1000, Time % 1000, aPlayerName);
 	else
@@ -131,7 +132,7 @@ void CRaceDemo::OnMessage(int MsgType, void *pRawMsg)
 	if(MsgType == NETMSGTYPE_SV_KILLMSG)
 	{
 		CNetMsg_Sv_KillMsg *pMsg = (CNetMsg_Sv_KillMsg *)pRawMsg;
-		if(pMsg->m_Victim == GameClient()->m_Snap.m_LocalClientId && Client()->RaceRecord_IsRecording())
+		if(pMsg->m_Victim == GameClient()->m_Snap.m_LocalClientId)
 			StopRecord(m_Time);
 	}
 	else if(MsgType == NETMSGTYPE_SV_KILLMSGTEAM)
@@ -139,7 +140,7 @@ void CRaceDemo::OnMessage(int MsgType, void *pRawMsg)
 		CNetMsg_Sv_KillMsgTeam *pMsg = (CNetMsg_Sv_KillMsgTeam *)pRawMsg;
 		for(int i = 0; i < MAX_CLIENTS; i++)
 		{
-			if(GameClient()->m_Teams.Team(i) == pMsg->m_Team && i == GameClient()->m_Snap.m_LocalClientId && Client()->RaceRecord_IsRecording())
+			if(GameClient()->m_Teams.Team(i) == pMsg->m_Team && i == GameClient()->m_Snap.m_LocalClientId)
 				StopRecord(m_Time);
 		}
 	}
@@ -156,6 +157,16 @@ void CRaceDemo::OnMessage(int MsgType, void *pRawMsg)
 				m_RecordStopTick = Client()->GameTick(g_Config.m_ClDummy) + Client()->GameTickSpeed();
 				m_Time = Time;
 			}
+		}
+	}
+	else if(MsgType == NETMSGTYPE_SV_RACEFINISH)
+	{
+		CNetMsg_Sv_RaceFinish *pMsg = (CNetMsg_Sv_RaceFinish *)pRawMsg;
+		if(m_RaceState == RACE_STARTED && pMsg->m_ClientId == GameClient()->m_Snap.m_LocalClientId)
+		{
+			m_RaceState = RACE_FINISHED;
+			m_RecordStopTick = Client()->GameTick(g_Config.m_ClDummy) + Client()->GameTickSpeed();
+			m_Time = pMsg->m_Time;
 		}
 	}
 }
@@ -211,7 +222,7 @@ int CRaceDemo::RaceDemolistFetchCallback(const CFsFileInfo *pInfo, int IsDir, in
 
 	const char *pTime = Item.m_aName + MapLen + 1;
 	const char *pTEnd = pTime;
-	while(isdigit(*pTEnd) || *pTEnd == ' ' || *pTEnd == '.' || *pTEnd == ',')
+	while(str_isnum(*pTEnd) || *pTEnd == ' ' || *pTEnd == '.' || *pTEnd == ',')
 		pTEnd++;
 
 	if(g_Config.m_ClDemoName)
@@ -241,7 +252,7 @@ int CRaceDemo::RaceDemolistFetchCallback(const CFsFileInfo *pInfo, int IsDir, in
 bool CRaceDemo::CheckDemo(int Time)
 {
 	std::vector<CDemoItem> vDemos;
-	CDemoListParam Param = {this, &vDemos, Client()->GetCurrentMap()};
+	CDemoListParam Param = {this, &vDemos, GameClient()->Map()->BaseName()};
 	m_RaceDemosLoadStartTime = time_get_nanoseconds();
 	SRaceDemoFetchUser User;
 	User.m_pParam = &Param;

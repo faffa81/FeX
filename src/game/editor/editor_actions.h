@@ -9,7 +9,7 @@
 #include <game/editor/mapitems/layer_tele.h>
 #include <game/editor/mapitems/layer_tiles.h>
 #include <game/editor/mapitems/layer_tune.h>
-#include <game/editor/quadart.h>
+#include <game/editor/quad_art.h>
 #include <game/mapitems.h>
 
 #include <memory>
@@ -18,6 +18,7 @@
 
 class CEditorMap;
 class IEditorEnvelopeReference;
+class CLayerGroup;
 
 class CEditorActionLayerBase : public IEditorAction
 {
@@ -88,7 +89,7 @@ private:
 class CEditorActionDeleteQuad : public CEditorActionLayerBase
 {
 public:
-	CEditorActionDeleteQuad(CEditorMap *pMap, int GroupIndex, int LayerIndex, std::vector<int> const &vQuadsIndices, std::vector<CQuad> const &vDeletedQuads);
+	CEditorActionDeleteQuad(CEditorMap *pMap, int GroupIndex, int LayerIndex);
 
 	void Undo() override;
 	void Redo() override;
@@ -351,14 +352,14 @@ private:
 class CEditorActionTileArt : public IEditorAction
 {
 public:
-	CEditorActionTileArt(CEditorMap *pMap, int PreviousImageCount, const char *pTileArtFile, std::vector<int> &vImageIndexMap);
+	CEditorActionTileArt(CEditorMap *pMap, int PreviousImageCount, const char *pFilename, std::vector<int> &vImageIndexMap);
 
 	void Undo() override;
 	void Redo() override;
 
 private:
 	int m_PreviousImageCount;
-	char m_aTileArtFile[IO_MAX_PATH_LENGTH];
+	char m_aFilename[IO_MAX_PATH_LENGTH];
 	std::vector<int> m_vImageIndexMap;
 };
 
@@ -367,13 +368,13 @@ private:
 class CEditorActionQuadArt : public IEditorAction
 {
 public:
-	CEditorActionQuadArt(CEditorMap *pMap, CQuadArtParameters Parameters);
+	CEditorActionQuadArt(CEditorMap *pMap, const std::shared_ptr<CLayerGroup> &pGroup);
 
 	void Undo() override;
 	void Redo() override;
 
 private:
-	CQuadArtParameters m_Parameters;
+	std::shared_ptr<CLayerGroup> m_pGroup;
 };
 
 // ----------------------
@@ -387,7 +388,7 @@ public:
 		ADD,
 		EDIT,
 		MOVE_UP,
-		MOVE_DOWN
+		MOVE_DOWN,
 	};
 
 	CEditorCommandAction(CEditorMap *pMap, EType Type, int *pSelectedCommandIndex, int CommandIndex, const char *pPreviousCommand = nullptr, const char *pCurrentCommand = nullptr);
@@ -438,7 +439,7 @@ public:
 	enum class EEditType
 	{
 		SYNC,
-		ORDER
+		ORDER,
 	};
 
 	CEditorActionEnvelopeEdit(CEditorMap *pMap, int EnvelopeIndex, EEditType EditType, int Previous, int Current);
@@ -451,7 +452,6 @@ private:
 	EEditType m_EditType;
 	int m_Previous;
 	int m_Current;
-	std::shared_ptr<CEnvelope> m_pEnv;
 };
 
 class CEditorActionEnvelopeEditPointTime : public IEditorAction
@@ -467,7 +467,6 @@ private:
 	int m_PointIndex;
 	CFixedTime m_Previous;
 	CFixedTime m_Current;
-	std::shared_ptr<CEnvelope> m_pEnv;
 
 	void Apply(CFixedTime Value);
 };
@@ -493,7 +492,6 @@ private:
 	EEditType m_EditType;
 	int m_Previous;
 	int m_Current;
-	std::shared_ptr<CEnvelope> m_pEnv;
 
 	void Apply(int Value);
 };
@@ -533,7 +531,7 @@ public:
 	{
 		TANGENT_IN,
 		TANGENT_OUT,
-		POINT
+		POINT,
 	};
 
 	CEditorActionEditEnvelopePointValue(CEditorMap *pMap, int EnvelopeIndex, int PointIndex, int Channel, EType Type, CFixedTime OldTime, int OldValue, CFixedTime NewTime, int NewValue);

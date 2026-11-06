@@ -1,10 +1,13 @@
-#include <base/system.h>
+#include <base/str.h>
 
 #include <gtest/gtest.h>
 
-bool is_letter(char c) { return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z'); }
+static bool IsLetter(char c)
+{
+	return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
+}
 
-bool IsValidEditorTooltip(const char *pTooltip, char *pErrorMsg, int ErrorMsgSize)
+static bool IsValidEditorTooltip(const char *pTooltip, char *pErrorMsg, int ErrorMsgSize)
 {
 	pErrorMsg[0] = '\0';
 	char aHotkey[512];
@@ -28,7 +31,7 @@ bool IsValidEditorTooltip(const char *pTooltip, char *pErrorMsg, int ErrorMsgSiz
 			{
 				ExpectLowerCase = false;
 			}
-			else if(!is_letter(aHotkey[i - 1]))
+			else if(!IsLetter(aHotkey[i - 1]))
 			{
 				// the first character of a word should be uppercase
 				ExpectLowerCase = false;
@@ -75,16 +78,10 @@ bool IsValidEditorTooltip(const char *pTooltip, char *pErrorMsg, int ErrorMsgSiz
 	return true;
 }
 
-void AssertTooltip(const char *pTooltip)
+static void AssertTooltip(const char *pTooltip)
 {
 	char aError[512];
-	bool IsValid = IsValidEditorTooltip(pTooltip, aError, sizeof(aError));
-	if(!IsValid)
-	{
-		dbg_msg("test", "Invalid tooltip: %s", pTooltip);
-		dbg_msg("test", "ERROR: %s", aError);
-	}
-	EXPECT_TRUE(IsValid);
+	EXPECT_TRUE(IsValidEditorTooltip(pTooltip, aError, sizeof(aError))) << "Invalid tooltip: " << pTooltip << "\nError: " << aError;
 }
 
 TEST(Editor, QuickActionNames)

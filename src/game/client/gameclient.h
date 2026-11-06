@@ -6,6 +6,7 @@
 #include "render.h"
 
 #include <base/color.h>
+#include <base/types.h>
 #include <base/vmath.h>
 
 #include <engine/client.h>
@@ -65,11 +66,13 @@
 #include "components/sounds.h"
 #include "components/spectator.h"
 #include "components/statboard.h"
-#include "components/tooltips.h"
 #include "components/touch_controls.h"
 #include "components/voting.h"
 
+#include <memory>
 #include <vector>
+
+class IMap;
 
 class CGameInfo
 {
@@ -117,6 +120,16 @@ public:
 	bool m_NoSkinChangeForFrozen;
 
 	bool m_DDRaceTeam;
+
+	bool m_PredictEvents;
+
+	bool m_OldLaser;
+
+	// zero if the server does not send them
+	int m_MinTeamSize;
+	int m_MaxTeamSize;
+
+	int m_NumDDRaceTeams;
 };
 
 class CSnapEntities
@@ -181,9 +194,6 @@ public:
 
 	CRaceDemo m_RaceDemo;
 	CGhost m_Ghost;
-
-	CTooltips m_Tooltips;
-
 	CLocalServer m_LocalServer;
 
 private:
@@ -326,8 +336,15 @@ public:
 
 	vec2 m_LocalCharacterPos;
 
-	// predicted players
+	/**
+	 * Our prediction for the local character at tick
+	 * `IClient::PredGameTick() - 1`.
+	 */
 	CCharacterCore m_PredictedPrevChar;
+	/**
+	 * Our prediction for the local character at tick
+	 * `IClient::PredGameTick()`.
+	 */
 	CCharacterCore m_PredictedChar;
 
 	// snap pointers
@@ -444,6 +461,9 @@ public:
 
 		char m_aName[MAX_NAME_LENGTH];
 		char m_aClan[MAX_CLAN_LENGTH];
+		/**
+		 * Country code in ISO 3166-1 numeric.
+		 */
 		int m_Country;
 		char m_aSkinName[MAX_SKIN_LENGTH];
 		int m_Team;
@@ -579,6 +599,8 @@ public:
 	CRenderTools m_RenderTools;
 	CRenderMap m_RenderMap;
 
+	bool m_BackButtonHandledKeyBind = false;
+
 	void OnReset();
 
 	size_t ComponentCount() const { return m_vpAll.size(); }
@@ -595,12 +617,12 @@ public:
 	template<typename T>
 	void ApplySkin7InfoFromGameMsg(const T *pMsg, int ClientId, int Conn);
 	void ApplySkin7InfoFromSnapObj(const protocol7::CNetObj_De_ClientInfo *pObj, int ClientId) override;
-	int OnDemoRecSnap7(class CSnapshot *pFrom, class CSnapshot *pTo, int Conn) override;
+	int OnDemoRecSnap7(CSnapshot *pFrom, CSnapshotBuffer *pTo, int Conn) override;
 	void *TranslateGameMsg(int *pMsgId, CUnpacker *pUnpacker, int Conn);
-	int TranslateSnap(CSnapshot *pSnapDstSix, CSnapshot *pSnapSrcSeven, int Conn, bool Dummy) override;
+	int TranslateSnap(CSnapshotBuffer *pSnapDstSix, CSnapshot *pSnapSrcSeven, int Conn, bool Dummy) override;
 	void OnMessage(int MsgId, CUnpacker *pUnpacker, int Conn, bool Dummy) override;
 	void InvalidateSnapshot() override;
-	void OnNewSnapshot() override;
+	void OnNewSnapshot(bool DummySwapped) override;
 	void OnPredict() override;
 	void OnActivateEditor() override;
 	void OnDummySwap() override;
@@ -652,7 +674,7 @@ public:
 	void SendInfo(bool Start);
 	void SendDummyInfo(bool Start) override;
 	void SendKill() const;
-	void SendReadyChange7();
+	void SendReadyChange7(); // NOLINT(readability-make-member-function-const)
 
 	void ApplyPreInputs(int Tick, bool Direct, CGameWorld &GameWorld);
 
@@ -666,22 +688,29 @@ public:
 	unsigned int m_DummyFire;
 	bool m_ReceivedDDNetPlayer;
 	bool m_ReceivedDDNetPlayerFinishTimes;
+	bool m_ReceivedDDNetPlayerFinishTimesMillis;
 
-	class CTeamsCore m_Teams;
+	CTeamsCore m_Teams;
 
 	int IntersectCharacter(vec2 HookPos, vec2 NewPos, vec2 &NewPos2, int OwnId, vec2 *pPlayerPosition = nullptr);
 
 	int LastRaceTick() const;
 	int CurrentRaceTime() const;
 
-	bool IsTeamPlay() const { return m_Snap.m_pGameInfoObj && m_Snap.m_pGameInfoObj->m_GameFlags & GAMEFLAG_TEAMS; }
+	bool IsTeamPlay() const;
+	int MinTeamSize() const;
+	int MaxTeamSize() const;
+	bool IsWorldPaused() const;
+	bool IsDemoPlaybackPaused() const;
+	float GetAnimationPlaybackSpeed() const;
 
-	bool AntiPingPlayers() const { return g_Config.m_ClAntiPing && g_Config.m_ClAntiPingPlayers && !m_Snap.m_SpecInfo.m_Active && Client()->State() != IClient::STATE_DEMOPLAYBACK && (m_aTuning[g_Config.m_ClDummy].m_PlayerCollision || m_aTuning[g_Config.m_ClDummy].m_PlayerHooking); }
-	bool AntiPingGrenade() const { return g_Config.m_ClAntiPing && g_Config.m_ClAntiPingGrenade && !m_Snap.m_SpecInfo.m_Active && Client()->State() != IClient::STATE_DEMOPLAYBACK; }
-	bool AntiPingWeapons() const { return g_Config.m_ClAntiPing && g_Config.m_ClAntiPingWeapons && !m_Snap.m_SpecInfo.m_Active && Client()->State() != IClient::STATE_DEMOPLAYBACK; }
-	bool AntiPingGunfire() const { return AntiPingGrenade() && AntiPingWeapons() && g_Config.m_ClAntiPingGunfire; }
+	int AntiPingPlayers() const;
+	bool AntiPingGrenade() const;
+	bool AntiPingWeapons() const;
+	bool AntiPingGunfire() const;
 	bool Predict() const;
-	bool PredictDummy() const { return g_Config.m_ClPredictDummy && Client()->DummyConnected() && m_Snap.m_LocalClientId >= 0 && m_aLocalIds[!g_Config.m_ClDummy] >= 0 && !m_aClients[m_aLocalIds[!g_Config.m_ClDummy]].m_Paused; }
+	bool PredictDummy() const;
+
 	const CTuningParams *GetTuning(int i) const { return &m_aTuningList[i]; }
 	ColorRGBA GetDDTeamColor(int DDTeam, float Lightness = 0.5f) const;
 	void FormatClientId(int ClientId, char (&aClientId)[16], EClientIdFormat Format) const;
@@ -699,6 +728,9 @@ public:
 	int SwitchStateTeam() const;
 	bool IsLocalCharSuper() const;
 	bool CanDisplayWarning() const override;
+
+	IMap *Map() override { return m_pMap.get(); }
+	const IMap *Map() const override { return m_pMap.get(); }
 	CNetObjHandler *GetNetObjHandler() override;
 	protocol7::CNetObjHandler *GetNetObjHandler7() override;
 
@@ -708,8 +740,11 @@ public:
 	void LoadHudSkin(const char *pPath, bool AsDir = false);
 	void LoadExtrasSkin(const char *pPath, bool AsDir = false);
 
-	struct SClientGameSkin
+	class CGameSkin
 	{
+	public:
+		bool m_Loaded = false;
+
 		// health armor hud
 		IGraphics::CTextureHandle m_SpriteHealthFull;
 		IGraphics::CTextureHandle m_SpriteHealthEmpty;
@@ -763,6 +798,7 @@ public:
 
 		// pickups
 		IGraphics::CTextureHandle m_SpritePickupHealth;
+		IGraphics::CTextureHandle m_SpritePickupFreeze;
 		IGraphics::CTextureHandle m_SpritePickupArmor;
 		IGraphics::CTextureHandle m_SpritePickupArmorShotgun;
 		IGraphics::CTextureHandle m_SpritePickupArmorGrenade;
@@ -793,12 +829,12 @@ public:
 			return m_SpriteNinjaBarFullLeft.IsValid();
 		}
 	};
+	CGameSkin m_GameSkin;
 
-	SClientGameSkin m_GameSkin;
-	bool m_GameSkinLoaded = false;
-
-	struct SClientParticlesSkin
+	class CParticlesSkin
 	{
+	public:
+		bool m_Loaded = false;
 		IGraphics::CTextureHandle m_SpriteParticleSlice;
 		IGraphics::CTextureHandle m_SpriteParticleBall;
 		IGraphics::CTextureHandle m_aSpriteParticleSplat[3];
@@ -809,20 +845,20 @@ public:
 		IGraphics::CTextureHandle m_SpriteParticleHit;
 		IGraphics::CTextureHandle m_aSpriteParticles[10];
 	};
+	CParticlesSkin m_ParticlesSkin;
 
-	SClientParticlesSkin m_ParticlesSkin;
-	bool m_ParticlesSkinLoaded = false;
-
-	struct SClientEmoticonsSkin
+	class CEmoticonsSkin
 	{
+	public:
+		bool m_Loaded = false;
 		IGraphics::CTextureHandle m_aSpriteEmoticons[16];
 	};
+	CEmoticonsSkin m_EmoticonsSkin;
 
-	SClientEmoticonsSkin m_EmoticonsSkin;
-	bool m_EmoticonsSkinLoaded = false;
-
-	struct SClientHudSkin
+	class CHudSkin
 	{
+	public:
+		bool m_Loaded = false;
 		IGraphics::CTextureHandle m_SpriteHudAirjump;
 		IGraphics::CTextureHandle m_SpriteHudAirjumpEmpty;
 		IGraphics::CTextureHandle m_SpriteHudSolo;
@@ -855,21 +891,19 @@ public:
 		IGraphics::CTextureHandle m_SpriteHudDummyHammer;
 		IGraphics::CTextureHandle m_SpriteHudDummyCopy;
 	};
+	CHudSkin m_HudSkin;
 
-	SClientHudSkin m_HudSkin;
-	bool m_HudSkinLoaded = false;
-
-	struct SClientExtrasSkin
+	class CExtrasSkin
 	{
+	public:
+		bool m_Loaded = false;
 		IGraphics::CTextureHandle m_SpriteParticleSnowflake;
 		IGraphics::CTextureHandle m_SpriteParticleSparkle;
 		IGraphics::CTextureHandle m_SpritePulley;
 		IGraphics::CTextureHandle m_SpriteHectagon;
 		IGraphics::CTextureHandle m_aSpriteParticles[4];
 	};
-
-	SClientExtrasSkin m_ExtrasSkin;
-	bool m_ExtrasSkinLoaded = false;
+	CExtrasSkin m_ExtrasSkin;
 
 	const std::vector<CSnapEntities> &SnapEntities() { return m_vSnapEntities; }
 
@@ -884,14 +918,30 @@ public:
 	void CleanMultiViewId(int ClientId);
 	int m_MapBestTimeSeconds;
 	int m_MapBestTimeMillis;
+	char m_aMapDescription[512];
 
 private:
+	std::unique_ptr<IMap> m_pMap;
+
 	std::vector<CSnapEntities> m_vSnapEntities;
 	void SnapCollectEntities();
 
 	bool m_aDDRaceMsgSent[NUM_DUMMIES];
 	int m_aShowOthers[NUM_DUMMIES];
 	int m_aEnableSpectatorCount[NUM_DUMMIES]; // current setting as sent to the server, -1 if not yet sent
+
+	class CImageAsset
+	{
+	public:
+		bool IsLoaded() const { return m_ImageInfo.m_pData != nullptr; }
+
+		char m_aPath[IO_MAX_PATH_LENGTH];
+		bool m_IsDefault;
+		CImageInfo m_ImageInfo;
+		std::optional<CImageInfo> m_FallbackImageInfo;
+	};
+
+	CImageAsset LoadAssetFromPath(const char *pPath, bool AsDir, int AssetId, const char *pDirectory) const;
 
 	std::vector<std::shared_ptr<CManagedTeeRenderInfo>> m_vpManagedTeeRenderInfos;
 	void UpdateManagedTeeRenderInfos();
@@ -900,6 +950,9 @@ private:
 	void UpdatePrediction();
 	void UpdateSpectatorCursor();
 	void UpdateRenderedCharacters();
+	void HandlePredictedEvents(int Tick);
+
+	void OnInput(const IInput::CEvent &Event);
 
 	int m_aLastUpdateTick[MAX_CLIENTS] = {0};
 	void DetectStrongHook();
@@ -924,10 +977,10 @@ private:
 	float m_LastFollowFactor;
 	bool m_LastDummyConnected;
 
+	bool InitMultiView(int Team);
 	void HandleMultiView();
 	bool IsMultiViewIdSet();
 	void CleanMultiViewIds();
-	bool InitMultiView(int Team);
 	float CalculateMultiViewMultiplier(vec2 TargetPos);
 	float CalculateMultiViewZoom(vec2 MinPos, vec2 MaxPos, float Vel);
 	float MapValue(float MaxValue, float MinValue, float MaxRange, float MinRange, float Value);

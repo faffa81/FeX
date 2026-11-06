@@ -34,8 +34,8 @@ void CLayerSpeedup::Resize(int NewW, int NewH)
 	mem_zero(pNewSpeedupData, (size_t)NewW * NewH * sizeof(CSpeedupTile));
 
 	// copy old data
-	for(int y = 0; y < minimum(NewH, m_Height); y++)
-		mem_copy(&pNewSpeedupData[y * NewW], &m_pSpeedupTile[y * m_Width], minimum(m_Width, NewW) * sizeof(CSpeedupTile));
+	for(int y = 0; y < std::min(NewH, m_Height); y++)
+		mem_copy(&pNewSpeedupData[y * NewW], &m_pSpeedupTile[y * m_Width], std::min(m_Width, NewW) * sizeof(CSpeedupTile));
 
 	// replace old
 	delete[] m_pSpeedupTile;
@@ -175,10 +175,15 @@ void CLayerSpeedup::BrushDraw(CLayer *pBrush, vec2 WorldPos)
 
 void CLayerSpeedup::RecordStateChange(int x, int y, SSpeedupTileStateChange::SData Previous, SSpeedupTileStateChange::SData Current)
 {
-	if(!m_History[y][x].m_Changed)
-		m_History[y][x] = SSpeedupTileStateChange{true, Previous, Current};
+	SSpeedupTileStateChange &Change = m_History[y][x];
+	if(Change.m_Changed)
+	{
+		Change.m_Current = Current;
+	}
 	else
-		m_History[y][x].m_Current = Current;
+	{
+		Change = SSpeedupTileStateChange{true, Previous, Current};
+	}
 }
 
 void CLayerSpeedup::BrushFlipX()

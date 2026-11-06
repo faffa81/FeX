@@ -265,9 +265,6 @@ Name
 Clan
 == Klano
 
-Add Friend
-== Aldoni amikon
-
 Remove chat
 == Malmontri babilejon
 
@@ -439,9 +436,6 @@ Normal message
 Preview
 == Antaŭrigardo
 
-A Tee
-== Tejo
-
 DDNet %s is available:
 == DDNet %s estas disponebla:
 
@@ -588,30 +582,6 @@ Replay feature is disabled!
 No demo with this filename exists
 == Neekzistas demo kun tiu dosiernomo
 
-[Graphics error]
-Unknown error. Try to change gfx_backend to OpenGL or Vulkan in settings_ddnet.cfg in the config directory and try again.
-== 
-
-[Graphics error]
-Could not initialize the given graphics backend, reverting to the default backend now.
-== 
-
-[Graphics error]
-Could not initialize the given graphics backend, this is probably because you didn't install the driver of the integrated graphics card.
-== 
-
-Could not resolve connect address '%s'. See local console for details.
-== 
-
-The width of texture %s is not divisible by %d, or the height is not divisible by %d, which might cause visual bugs.
-== 
-
-"%s" is not compatible with pnglite and cannot be loaded by old DDNet versions:
-== 
-
-The format of texture %s is not RGBA which will cause visual bugs.
-== 
-
 Preparing demo playback
 == Preparado de ludado de demo
 
@@ -624,18 +594,6 @@ Some fonts could not be loaded. Check the local console for details.
 Initializing components
 == Privalorizado de komponantoj
 
-Why are you slowmo replaying to read this?
-== 
-
-Initializing assets
-== 
-
-Initializing map logic
-== 
-
-Sending initial client info
-== 
-
 Quitting. Please wait…
 == Elirado. Bonvolu atendi…
 
@@ -644,24 +602,6 @@ Restarting. Please wait…
 
 Loading skin files
 == Ŝargado de haŭtdosieroj
-
-Team save in progress. You'll be able to load with '/load %s'
-== 
-
-Team save in progress. You'll be able to load with '/load %s' if save is successful or with '/load %s' if it fails
-== 
-
-Team successfully saved by %s. The database connection failed, using generated save code instead to avoid collisions. Use '/load %s' to continue
-== 
-
-Team successfully saved by %s. The database connection failed, using generated save code instead to avoid collisions. Use '/load %s' on %s to continue
-== 
-
-Save failed!
-== 
-
-Auto-sync player camera
-== 
 
 [Auto camera]
 Disabled
@@ -695,14 +635,8 @@ Enter Password
 NOT CONNECTED
 == NE KONEKTITA
 
-Match %d of %d
-== 
-
 No results
 == Sen rezultoj
-
-Lines %d - %d (%s)
-== 
 
 Locked
 == Ŝlosita
@@ -715,9 +649,6 @@ Loading commands…
 
 Loading maps…
 == Ŝargado de mapoj…
-
-Debug mode enabled. Press Ctrl+Shift+D to disable debug mode.
-== 
 
 Sudden Death
 == Subita morto
@@ -749,48 +680,20 @@ Server best:
 Personal best:
 == Persona rekordo:
 
-[Important alert message]
-Press Esc or Tab to dismiss…
-== 
-
-Server alert
-== 
-
-Moderator alert
-== 
-
 Team %d
 == Teamo %d
 
-Press a key…
-== 
-
-Server could not be started. Make sure to grant the notification permission in the app settings so the server can run in the background.
-== 
-
 Server could not be started
-== 
-
-Server executable not found, can't run server
-== 
-
-Some map images could not be loaded. Check the local console for details.
-== 
+== Servilo ne eblis esti startita
 
 Loading map
 == Ŝargado de mapo
-
-Uploading map data to GPU
-== 
-
-Some map sounds could not be loaded. Check the local console for details.
-== 
 
 Loading menu themes
 == Ŝargado de menuaj etosoj
 
 Reset
-== 
+== Restarigi
 
 Demos
 == Demoj
@@ -816,23 +719,8 @@ Password incorrect
 Are you sure that you want to restart?
 == Ĉu vi certas, ke vi volas relanĉi?
 
-DDraceNetwork is a cooperative online game where the goal is for you and your group of tees to reach the finish line of the map. As a newcomer you should start on Novice servers, which host the easiest maps. Consider the ping to choose a server close to you.
-== 
-
-Use k key to kill (restart), q to pause and watch other players. See settings for other key binds.
-== 
-
-It's recommended that you check the settings to adjust them to your liking before joining a server.
-== 
-
 Save skin
 == Konservi haŭton
-
-Are you sure you want to save your skin? If a skin with this name already exists, it will be replaced.
-== 
-
-There's an unsaved map in the editor, you might want to save it.
-== 
 
 Continue anyway?
 == Ĉu daŭrigi ĉiuokaze?
@@ -858,9 +746,6 @@ File '%s' already exists, do you want to overwrite it?
 Replace video
 == Anstataŭigi videaĵon
 
-Show ingame HUD
-== 
-
 (paused)
 == (paŭzita)
 
@@ -876,65 +761,20 @@ Videos directory
 Video was saved to '%s'
 == Videaĵo estis konservita al '%s'
 
-Show DDNet map finishes in server browser
-== 
-
-transmits your player name to info.ddnet.org
-== 
-
 Cancel
 == Nuligi
 
 Error checking player name
 == Eraris kontrolante ludantan nomon
 
-Could not check for existing player with your name. Check your internet connection.
-== 
-
-Unable to save the skin with a reserved name
-== 
-
-Unable to save the skin
-== 
-
-Trying to determine UDP connectivity…
-== 
-
 UDP seems to be filtered.
 == UDP ŝajnas esti filtrata.
-
-UDP and TCP IP addresses seem to be different. Try disabling VPN, proxy or network accelerators.
-== 
 
 No answer from server yet.
 == Ankoraŭ neniu respondo de servilo.
 
-%d/%d KiB (%.1f KiB/s)
-== 
-
-Getting game info
-== 
-
-Requesting to join the game
-== 
-
 Error loading demo
 == Eraris ŝargante demon
-
-The server is running a non-standard tuning on a pure game type.
-== 
-
-Loading menu images
-== 
-
-Ping
-== 
-
-No local servers found (ports %d-%d)
-== 
-
-Could not get server list from master server
-== 
 
 Reset filter
 == Restarigi filtrilon
@@ -948,20 +788,8 @@ Has people playing
 Server not full
 == Servilo ne plena
 
-No login required
-== 
-
-Strict gametype filter
-== 
-
 Player country:
 == Ludanta lando:
-
-Filter connecting players
-== 
-
-Indicate map finish
-== 
 
 Unfinished map
 == Nefinita mapo
@@ -971,9 +799,6 @@ Types
 
 Communities
 == Komunumoj
-
-Copy info
-== 
 
 Leak IP
 == Malkovri IP-adreson
@@ -991,58 +816,14 @@ Online clanmates (%d)
 Offline (%d)
 == Ne surretaj (%d)
 
-Click to select server. Double click to join your friend.
-== 
-
-Click to remove this player from your friends list.
-== 
-
-Click to remove this clan from your friends list.
-== 
-
-Add friends by entering their name below or by clicking their name in the player list.
-== 
-
-Add clanmates by entering their clan below and leaving the name blank.
-== 
-
-Are you sure that you want to remove the player '%s' from your friends list?
-== 
-
-Are you sure that you want to remove the clan '%s' from your friends list?
-== 
-
 Remove friend
 == Forigi amikon
-
-Add Clan
-== Aldoni klanon
 
 Server filter
 == Servila filtrilo
 
 Friends
 == Amikoj
-
-[Demo playback]
-Live
-== 
-
-[Demo playback]
-Go to Live
-== 
-
-Play the current demo
-== 
-
-Pause the current demo
-== 
-
-Stop the current demo
-== 
-
-Go back the specified duration
-== 
 
 [Demo player duration]
 %s min.
@@ -1052,62 +833,11 @@ Go back the specified duration
 %s sec.
 == %s sek.
 
-Change the skip duration
-== 
-
-Go forward the specified duration
-== 
-
-Go back one tick
-== 
-
-Go forward one tick
-== 
-
-Go back one marker
-== 
-
-Go forward one marker
-== 
-
-Slow down the demo
-== 
-
-Speed up the demo
-== 
-
-Mark the beginning of a cut (right click to reset)
-== 
-
-Mark the end of a cut (right click to reset)
-== 
-
-Export cut as a separate demo
-== 
-
 Close the demo player
-== 
-
-Toggle keyboard shortcuts
-== 
-
-Toggle auto camera
-== 
+== Fermi la demo-ludilon
 
 Demofile: %s
 == Demo-dosiero: %s
-
-Export demo cut
-== 
-
-Cut interval
-== 
-
-Cut length
-== 
-
-Render cut to video
-== 
 
 Please use a different filename
 == Bonvolu uzi alian dosiernomon
@@ -1118,17 +848,8 @@ File already exists, do you want to overwrite it?
 Loading demo files
 == Ŝargado de demo-dosieroj
 
-All combined
-== 
-
 Demo
 == Demo
-
-Markers
-== 
-
-Length
-== 
 
 Date
 == Dato
@@ -1151,33 +872,14 @@ Created
 Size
 == Grando
 
-%.2f MiB
-== 
-
-%.2f KiB
-== 
-
-Netversion
-== 
-
 Map size
 == Mapa grando
-
-[Demo details]
-map not included
-== 
-
-Fetch Info
-== 
 
 Demos directory
 == Dosierujo de demoj
 
 Open the directory that contains the demo files
 == Malfermi la dosierujon enhavatan la demo-dosierojn
-
-Are you sure that you want to disconnect and play this demo?
-== 
 
 Are you sure that you want to delete the folder '%s'?
 == Ĉu vi certas ke vi volas forigi la dosierujon '%s'?
@@ -1191,32 +893,17 @@ Delete folder
 Delete demo
 == Forigi demon
 
-Unable to delete the demo '%s'
-== 
-
-Unable to delete the folder '%s'. Make sure it's empty first.
-== 
-
 Dummy is not allowed on this server
 == Pupo ne estas permesata ĉe ĉi tiu servilo
 
 Please wait…
 == Bonvolu atendi…
 
-Stop record
-== 
-
 Record demo
 == Registri demon
 
-Edit touch controls
-== 
-
 Unsaved changes
 == Nekonservitaj ŝanĝoj
-
-Save all changes before turning off the editor?
-== 
 
 Save
 == Konservi
@@ -1224,23 +911,8 @@ Save
 Close
 == Fermi
 
-Remote console
-== 
-
 Console
 == Konzolo
-
-Error loading touch controls
-== 
-
-Could not load touch controls from file. See local console for details.
-== 
-
-Could not load default touch controls from file. See local console for details.
-== 
-
-Could not load touch controls from clipboard. See local console for details.
-== 
 
 Community
 == Komunumo
@@ -1305,9 +977,6 @@ Deactivate
 Activate
 == Aktivigi
 
-Menu opened. Press Esc key again to close menu.
-== 
-
 Layout
 == Aranĝo
 
@@ -1332,23 +1001,11 @@ Are you sure that you want to delete this button?
 Duplicate
 == Duobligi
 
-New button already created
-== Nova butono jam kreita
-
-A new button has already been created, please save or delete it before creating another one.
-== Nova butono estis jam kreita, bonvolu konservi aŭ forigi ĝin antaŭ ol krei iun alian.
-
 Please save your changes before duplicating a button.
 == Bonvolu konservi viajn ŝanĝojn antaŭ ol duobligi butonon.
 
 No space for button
 == Neniom da spaco por butono
-
-There is not enough space available to place another button.
-== 
-
-There is not enough space available to place another button with this size. The button has been resized.
-== 
 
 Deselect
 == Malelekti
@@ -1389,14 +1046,6 @@ Behavior type
 == Konduta tipo
 
 [Touch button behavior]
-Bind
-== 
-
-[Touch button behavior]
-Bind Toggle
-== 
-
-[Touch button behavior]
 Predefined
 == Antaŭdifinita
 
@@ -1416,28 +1065,14 @@ Delete command
 == Forigi komandon
 
 [Touch button visibility preview]
-Included
-== 
-
-[Touch button visibility preview]
-Excluded
-== 
-
-[Touch button visibility preview]
 Ignore
 == Ignori
-
-Long press on a touch button to select it.
-== 
 
 New button
 == Nova butono
 
 Select button by touch
 == Elekti butonon tuŝante
-
-No buttons match your filter criteria
-== 
 
 File
 == Dosiero
@@ -1450,9 +1085,6 @@ Active color
 
 Inactive color
 == Neaktiva koloro
-
-Direct touch input while ingame
-== 
 
 [Direct touch input]
 Disabled
@@ -1474,68 +1106,29 @@ Fire
 Hook
 == Hoko
 
-Direct touch input while spectating
-== 
-
-Preview button visibility while the editor is active.
-== 
-
 Show all buttons
 == Montri ĉiujn butonojn
-
-https://wiki.ddnet.org/wiki/Touch_controls
-== 
-
-Error saving touch controls
-== 
-
-Could not save touch controls to file. See local console for details.
-== 
-
-Are you sure that you want to discard the current changes to the touch controls?
-== 
 
 Reset to defaults
 == Restarigi defaŭltojn
 
-Are you sure that you want to reset the touch controls to default?
-== 
-
 Import from clipboard
 == Importi el tondujo
-
-Are you sure that you want to import the touch controls from the clipboard? This will overwrite your current touch controls.
-== 
 
 Export to clipboard
 == Eksporti al tondujo
 
-Save all changes before switching selected button?
-== 
-
 Discard
 == Forĵeti
-
-There is not enough space available for the button. Check its visibilities and size.
-== 
 
 Selected button not visible
 == Elektita butono ne estas videbla
 
-The selected button is not visible. Do you want to deselect it or edit its visibility?
-== 
-
 Edit
 == Redakti
 
-Width and height are required to be within the range from %d to %d.
-== 
-
 Button position is outside of the screen.
 == Butona pozicio estas ekstere de la ekrano.
-
-The selected button is overlapping with other buttons.
-== 
 
 Wrong button settings
 == Malbonaj agordoj de butono
@@ -1549,10 +1142,6 @@ Zoom Allowed
 == Zomo permesita
 
 [Touch button visibilities]
-Vote Active
-== 
-
-[Touch button visibilities]
 Dummy Allowed
 == Pupo permesita
 
@@ -1561,24 +1150,12 @@ Dummy Connected
 == Pupo konektita
 
 [Touch button visibilities]
-Rcon Authed
-== 
-
-[Touch button visibilities]
 Demo Player
 == Demo-ludilo
-
-[Touch button visibilities]
-Extra Menu
-== 
 
 [Predefined touch button behaviors]
 Ingame Menu
 == Enluda menuo
-
-[Predefined touch button behaviors]
-Extra Menu
-== 
 
 [Predefined touch button behaviors]
 Emoticon
@@ -1589,40 +1166,11 @@ Spectate
 == Spekti
 
 [Predefined touch button behaviors]
-Swap Action
-== 
-
-[Predefined touch button behaviors]
 Use Action
 == Uzi agon
 
-[Predefined touch button behaviors]
-Joystick Action
-== 
-
-[Predefined touch button behaviors]
-Joystick Aim
-== 
-
-[Predefined touch button behaviors]
-Joystick Fire
-== 
-
-[Predefined touch button behaviors]
-Joystick Hook
-== 
-
-Dynamic Camera
-== 
-
-Smooth Dynamic Camera
-== 
-
 Switch weapon on pickup
 == Ŝanĝi batalilon post kolekto
-
-Switch weapon when out of ammo
-== 
 
 Client
 == Kliento
@@ -1637,26 +1185,14 @@ Hz
 Refresh Rate
 == Aktualiga ofteco
 
-Save power by lowering refresh rate (higher input latency)
-== 
-
 Settings file
-== Agorda dosiero
+== Agordara dosiero
 
 Open the settings file
-== Malfermi la agordan dosieron
-
-Saves file
-== 
-
-Open the saves file
-== 
+== Malfermi la agordaran dosieron
 
 Config directory
-== 
-
-Open the directory that contains the configuration and user files
-== 
+== Konfigura dosierujo
 
 Themes directory
 == Etosa dosierujo
@@ -1665,216 +1201,1093 @@ Open the directory to add custom themes
 == Malfermi la dosierujon por aldoni proprajn etosojn
 
 Automatically record demos
-== 
+== Aŭtomate registri demojn
 
 Max demos
 == Maksimume demoj
 
 Automatically take game over screenshot
-== 
+== Aŭtomate fari ekrankopion je luda fino
 
 Max Screenshots
 == Maksimume ekrankopioj
 
-Automatically take statboard screenshot
-== 
-
-Automatically create statboard csv
-== 
-
 Max CSVs
 == Maksimume CSV-oj
 
-Player info change cooldown
-== 
-
 Download skins
-== 
+== Elŝuti haŭtojn
 
 Download community skins
-== 
+== Elŝuti komunumajn haŭtojn
 
 Vanilla skins only
-== 
+== Nur vanilla-haŭtoj
 
 Fat skins (DDFat)
-== 
+== Dikaj haŭtoj (DDFat)
 
 Skin prefix
-== 
+== Haŭta prefikso
 
 Your skin
-== 
+== Via haŭto
 
 This skin name cannot be used.
-== 
-
-Skin could not be loaded due to an error. Check the local console for details.
-== 
+== Tiu nomo ne povas esti uzita.
 
 Skin could not be found.
-== 
+== Haŭto ne eblis esti trovita.
 
 Create a random skin
-== 
+== Krei hazardan haŭton
 
 Custom colors
-== 
+== Propraj koloroj
 
 Choose default eyes when joining a server
-== 
+== Elektu defaŭltajn okulojn je aligado al servilo
 
 Body
-== 
+== Korpo
 
 Feet
-== 
-
-No skins match your filter criteria
-== 
+== Piedoj
 
 Open the directory to add custom skins
-== 
+== Malfermi la dosierujon por aldoni proprajn haŭtojn
 
 Current
-== 
+== Aktuala
 
 Windowed
-== 
+== Fenestre
 
 Windowed borderless
-== 
+== Fenestre senborde
 
 Windowed fullscreen
-== 
+== Fenestre plenekrane
 
 Desktop fullscreen
-== 
+== Labortable plenekrane
 
 Fullscreen
-== 
+== Plenekrane
 
 V-Sync
-== 
-
-may cause delay
-== 
-
-FSAA samples
-== 
+== V-Sync
 
 High Detail
-== 
-
-Allows maps to render with more detail
-== 
+== Altdetale
 
 Show FPS
-== 
-
-Renders your frame rate in the top right
-== 
+== Montri K/S
 
 UI Color
-== 
+== Uzantinterfaca koloro
 
 Renderer
-== 
+== Bildigilo
 
 custom
-== 
+== propra
 
 Graphics card
-== 
+== Grafika karto
 
 Play background music
-== 
+== Ludi fonan muzikon
 
 Mute when not active
-== 
+== Silentigi kiam neaktiva
 
 Enable game sounds
-== 
+== Ŝalti sonojn de ludo
 
 Enable gun sound
-== 
-
-Enable long pain sound (used when shooting in freeze)
-== 
-
-Enable server message sound
-== 
-
-Enable regular chat sound
-== 
-
-Enable team chat sound
-== 
-
-Enable highlighted chat sound
-== 
+== Ŝalti sonon de pafilo
 
 Sound volume
-== 
+== Laŭteco
 
 Game sound volume
-== 
+== Laŭteco de ludo
 
 Chat sound volume
-== 
+== Laŭteco de babilejo
 
 Map sound volume
-== 
+== Laŭteco de sonojn de mapo
 
 Background music volume
-== 
+== Laŭteco de fona muziko
 
 Tee
-== 
+== Tejo
 
 Controls
-== 
+== Regilo
 
 Hue
-== 
+== Kolortono
 
 Sat.
-== 
+== Satureco
 
 Lht.
-== 
+== Heleco
 
 Alpha
+== Alfa
+
+Name Plate
+== Nomplato
+
+Info Messages
+== Informaj mesaĝoj
+
+Show health, shields and ammo
+== Montri sanon, ŝildojn kaj municio
+
+Show score
+== Montri poentaron
+
+Show local time always
+== Ĉiam montri lokan tempon
+
+Scoreboard
+== Poentotabulo
+
+Show player speed
+== Montri ludantan rapidon
+
+Show player target angle
+== Montri ludantan celan angulon
+
+Always show chat
+== Ĉiam montri babilejon
+
+Show only chat messages from team members
+== Montri nur babilejajn mesaĝojn de teamanoj
+
+Use old chat style
+== Uzi malnovan stilon de babilejo
+
+Censor profanity
+== Cenzuri krudan lingvaĵon
+
+Chat font size
+== Babileja tipara grando
+
+Chat width
+== Babileja larĝo
+
+Chat background color
+== Babileja fona koloro
+
+Messages
+== Mesaĝoj
+
+System message
+== Sistema mesaĝo
+
+Highlighted message
+== Emfazita mesaĝo
+
+Client message
+== Klienta mesaĝo
+
+Show name plates
+== Montri nomplatojn
+
+[Show name plates]
+None
+== Neniu
+
+[Show name plates]
+Own
+== Propran
+
+[Show name plates]
+Others
+== Aliulajn
+
+[Show name plates]
+All
+== Ĉiujn
+
+Name plates size
+== Nomplata grando
+
+Name plates offset
+== Nomplata deŝovo
+
+Hook Strength
+== Hoka forto
+
+[Graphics error]
+Unknown error. Try to change gfx_backend to OpenGL or Vulkan in settings_ddnet.cfg in the config directory and try again.
+== Nekonata eraro. Provu ŝanĝi gfx_backend al OpenGL aŭ Vulkan en settings_ddnet.cfg en la agordara dosierujo kaj reprovu.
+
+[Graphics error]
+Could not initialize the given graphics backend, reverting to the default backend now.
+== Ne eblis pravalorizi la donitan grafikan backend-on, revenas al la defaŭlta backend nun.
+
+Could not resolve connect address '%s'. See local console for details.
+== Ne eblis adrestrovi konektan adreson '%s'. Vidu lokan konzolon por detaloj.
+
+The width of texture %s is not divisible by %d, or the height is not divisible by %d, which might cause visual bugs.
+== La larĝo de teksturo %s ne estas dividebla per %d aŭ la alto ne estas dividebla per %d, kio povas kaŭzi grafikajn erarojn.
+
+"%s" is not compatible with pnglite and cannot be loaded by old DDNet versions:
+== "%s" ne kongruas kun pnglite kaj ne povas esti ŝargita per malnovaj DDNet versioj:
+
+The format of texture %s is not RGBA which will cause visual bugs.
+== La formo de teksturo %s ne estas RGBA kiu kaŭzos grafikajn erarojn.
+
+Team save in progress. You'll be able to load with '/load %s'
+== Teama konservo farata. Vi eblos ŝargi ĝin per '/load %s'
+
+Team save in progress. You'll be able to load with '/load %s' if save is successful or with '/load %s' if it fails
+== Teama konservo farata. Vi eblos ŝargi ĝin per '/load %s' se tio sukcesos aŭ per '/load %s' se tio malsukcesos
+
+Team successfully saved by %s. The database connection failed, using generated save code instead to avoid collisions. Use '/load %s' to continue
+== Teamo sukcese konservita de %s. La datumbaza konekto fiaskis, uzado de generita konserva kodo anstataŭ por eviti koliziojn. Uzu '/load %s' por daŭrigi
+
+Team successfully saved by %s. The database connection failed, using generated save code instead to avoid collisions. Use '/load %s' on %s to continue
+== Teamo sukcese konservita de %s. La datumbaza konekto fiaskis, uzado de generita konserva kodo anstataŭ por eviti koliziojn. Uzi '/load %s' ĉe %s por daŭrigi
+
+Save failed!
+== Konservo malsukcesis!
+
+Lines %d - %d (%s)
+== Vicoj %d – %d (%s)
+
+Debug mode enabled. Press Ctrl+Shift+D to disable debug mode.
+== Cimspura reĝimo ŝaltita. Premu Ctrl+Shift+D por malŝalti cimspuran reĝimon.
+
+[Important alert message]
+Press Esc or Tab to dismiss…
+== Premu Esc aŭ Tab por fermi…
+
+Server alert
+== Servila averto
+
+Press a key…
+== Premu klavon…
+
+Some map sounds could not be loaded. Check the local console for details.
+== Kelkaj mapaj sonoj ne povis esti ŝargitaj. Kontrolu la lokan konzolon por detaloj.
+
+Use k key to kill (restart), q to pause and watch other players. See settings for other key binds.
+== Uzu klavon k por morti (rekomenci), q por paŭzi kaj spekti aliajn ludantojn. Vidu agordojn por aliaj klavkombinoj.
+
+Show others (own team only)
+== Montri aliulojn (nur via teamo)
+
+Show background quads
+== Montri fonajn quad-ojn
+
+Quads are used for background decoration
+== Quadoj estas uzataj por fona ornamado
+
+Default zoom
+== Defaŭlta zomo
+
+Background
+== Fono
+
+Regular background color
+== Ordinara fona koloro
+
+Entities background color
+== Fona koloro de entoj
+
+Use current map as background
+== Uzi nunan mapon kiel fono
+
+Miscellaneous
+== Aliaj
+
+New random timeout code
+== Nova hazarda tempolima kodo
+
+Chat command (e.g. showall 1)
+== Babileja komando (ekz. showall 1)
+
+Unregister protocol and file extensions
+== Malregistri protokolon kaj dosiersufikson
+
+DDNet Client updated!
+== DDNet-kliento ĝisdatigita!
+
+No updates available
+== Neniu ĝisdatigo disponebla
+
+Custom
+== Propra
+
+Are you sure that you want to delete '%s'?
+== Ĉu vi certas ke vi volas forigi '%s'?
+
+Delete skin
+== Forigi haŭton
+
+Unable to delete skin
+== Ne eblas forigi haŭton
+
+Emoticons
+== Emoĝioj
+
+Particles
+== Partikloj
+
+Hook collisions
+== Hokaj kolizioj
+
+Zoom in
+== Zomi
+
+Zoom out
+== Malzomi
+
+Toggle ghost
+== Baskuligi fantomon
+
+Shotgun
+== Kartoĉa fusilo
+
+Grenade
+== Grenadĵetilo
+
+Next weapon
+== Sekva batalilo
+
+Prev. weapon
+== Antaŭa batalilo
+
+Team chat
+== Teama babilejo
+
+Converse
+== Konversacii
+
+Chat command
+== Babileja komando
+
+Toggle dummy
+== Baskuligi pupon
+
+Dummy copy
+== Pupo kopii movojn
+
+Emoticon
+== Emoĝio
+
+Spectator mode
+== Spektanta reĝimo
+
+Spectate next
+== Spekti sekvan
+
+Spectate previous
+== Spekti antaŭan
+
+Screenshot
+== Ekrankopio
+
+Lock team
+== Ŝlosi teamon
+
+Show entities
+== Montri entojn
+
+Controller
+== Ludregilo
+
+Movement
+== Movado
+
+Voting
+== Balotado
+
+Ingame mouse sens.
+== Enluda musa sentemo
+
+UI mouse sens.
+== Enmenua musa sentemo
+
+Enable controller
+== Ŝalti ludregilon
+
+Ingame controller mode
+== Enluda ludregila reĝimo
+
+[Ingame controller mode]
+Relative
+== Relativa
+
+[Ingame controller mode]
+Absolute
+== Absoluta
+
+Ingame controller sens.
+== Enluda ludregila sentemo
+
+UI controller sens.
+== Enmenua ludregila sentemo
+
+No controller found. Plug in a controller.
+== Neniu ludregilo trovita. Konektu ludregilon.
+
+Axis
+== Akso
+
+Status
+== Stato
+
+Update failed! Check log…
+== Ĝisdatigo fiaskis! Kontrolu protokolon…
+
+Download
+== Elŝuti
+
+[Spectators]
+%d others…
+== %d aliaj…
+
+Score
+== Poentoj
+
+[Team and size]
+%d\n(%d/%d)
+== %d\n(%d/%d)
+
+Team %d (%d/%d)
+== Teamo %d (%d/%d)
+
+Manual
+== Permana
+
+Race
+== Vetkuro
+
+Red team wins!
+== Ruĝa teamo venkas!
+
+%s wins!
+== %s venkas!
+
+Blue team wins!
+== Blua teamo venkas!
+
+Draw!
+== Egalvenko!
+
+Game over
+== Fino de ludo
+
+Unmute
+== Malsilentigi
+
+Mute
+== Silentigi
+
+Unmute emoticons
+== Malsilentigi emoĝiojn
+
+Mute emoticons
+== Silentigi emoĝiojn
+
+[skins]
+Body
+== Korpo
+
+[skins]
+Marking
+== Marko
+
+[skins]
+Decoration
+== Ornamaĵo
+
+[skins]
+Hands
+== Manoj
+
+[skins]
+Feet
+== Piedoj
+
+[skins]
+Eyes
+== Okuloj
+
+Loading sound files
+== Ŝargado de sondosierojn
+
+Suicides
+== Sinmortigoj
+
+Ratio
+== Proporcio
+
+Grabs
+== Kaptoj
+
+Aim
+== Celado
+
+Active: Fire
+== Aktiva: Pafi
+
+Active: Hook
+== Aktiva: Hoki
+
+Moved ingame
+== Movis enlude
+
+https://wiki.ddnet.org/wiki/Mapping
+== https://wiki.ddnet.org/wiki/Mapping
+
+Add clan
+== Aldoni klanon
+
+Add friend
+== Aldoni amikon
+
+[Graphics error]
+Could not initialize the given graphics backend, this is probably because you didn't install the driver of the integrated graphics card.
+== 
+
+Why are you slowmo replaying to read this?
+== 
+
+Initializing assets
+== 
+
+Initializing map logic
+== 
+
+Sending initial client info
+== 
+
+Hold Shift to be more precise.
+== 
+
+Auto-sync player camera
+== 
+
+Match %d of %d
+== 
+
+Dummy is not connected
+== 
+
+[Important alert message]
+Tap to dismiss…
+== 
+
+Moderator alert
+== 
+
+Server could not be started. Make sure to grant the notification permission in the app settings so the server can run in the background.
+== 
+
+Server executable not found, can't run server
+== 
+
+Some map images could not be loaded. Check the local console for details.
+== 
+
+Initializing layers
+== 
+
+DDraceNetwork is a cooperative online game where the goal is for you and your group of tees to reach the finish line of the map. As a newcomer you should start on Novice servers, which host the easiest maps. Consider the ping to choose a server close to you.
+== 
+
+It's recommended that you check the settings to adjust them to your liking before joining a server.
+== 
+
+Joining Tutorial server
+== 
+
+Are you sure you want to save your skin? If a skin with this name already exists, it will be replaced.
+== 
+
+There's an unsaved map in the editor, you might want to save it.
+== 
+
+There's an unsaved change in the touch controls editor, you might want to save it.
+== 
+
+Show ingame HUD
+== 
+
+Show DDNet map finishes in server browser
+== 
+
+transmits your player name to info.ddnet.org
+== 
+
+Could not get server list from master server
+== 
+
+There are no Tutorial servers available
+== 
+
+Retrying…
+== 
+
+Error joining Tutorial server
+== 
+
+Could not find a Tutorial server. Check your internet connection.
+== 
+
+You're playing on a local server because no online Tutorial server could be found.\n\nYour record will only be saved locally.
+== 
+
+Could not find online Tutorial server.\nStarting and connecting to local server…
+== 
+
+Waiting for local server to stop…
+== 
+
+Waiting for local server to start…
+== 
+
+Could not check for existing player with your name. Check your internet connection.
+== 
+
+Unable to save the skin with a reserved name
+== 
+
+Unable to save the skin
+== 
+
+Trying to determine UDP connectivity…
+== 
+
+UDP and TCP IP addresses seem to be different. Try disabling VPN, proxy or network accelerators.
+== 
+
+%d/%d KiB (%.1f KiB/s)
+== 
+
+Getting game info
+== 
+
+Requesting to join the game
+== 
+
+The server is running a non-standard tuning on a pure game type.
+== 
+
+Loading menu images
+== 
+
+Ping
+== 
+
+No local servers found (ports %d-%d)
+== 
+
+Start and connect to local server
+== 
+
+No login required
+== 
+
+Strict gametype filter
+== 
+
+Filter connecting players
+== 
+
+Indicate map finish
+== 
+
+Error loading communities
+== 
+
+Click to remove this community from your favorites.
+== 
+
+Click to add this community to your favorites.
+== 
+
+Copy info
+== 
+
+Click to select server. Double click to join your friend.
+== 
+
+Click to remove this player from your friends list.
+== 
+
+Click to remove this clan from your friends list.
+== 
+
+Add friends by entering their name below or by clicking their name in the player list.
+== 
+
+Add clanmates by entering their clan below and leaving the name blank.
+== 
+
+Are you sure that you want to remove the player '%s' from your friends list?
+== 
+
+Are you sure that you want to remove the clan '%s' from your friends list?
+== 
+
+[Demo playback]
+Live
+== 
+
+[Demo playback]
+Go to Live
+== 
+
+Play the current demo
+== 
+
+Pause the current demo
+== 
+
+Stop the current demo
+== 
+
+Go back the specified duration
+== 
+
+Change the skip duration
+== 
+
+Go forward the specified duration
+== 
+
+Go back one tick
+== 
+
+Go forward one tick
+== 
+
+Go back one marker
+== 
+
+Go forward one marker
+== 
+
+Slow down the demo
+== 
+
+Speed up the demo
+== 
+
+Mark the beginning of a cut (right click to reset)
+== 
+
+Mark the end of a cut (right click to reset)
+== 
+
+Export cut as a separate demo
+== 
+
+Toggle keyboard shortcuts
+== 
+
+Toggle auto camera
+== 
+
+Export demo cut
+== 
+
+Cut interval
+== 
+
+Cut length
+== 
+
+Render cut to video
+== 
+
+All combined
+== 
+
+Markers
+== 
+
+Length
+== 
+
+%.2f MiB
+== 
+
+%.2f KiB
+== 
+
+Netversion
+== 
+
+[Demo details]
+map not included
+== 
+
+Refresh the demo list
+== 
+
+Fetch Info
+== 
+
+Open the selected folder
+== 
+
+Play the selected demo
+== 
+
+Are you sure that you want to disconnect and play this demo?
+== 
+
+Unable to delete the demo '%s'
+== 
+
+Unable to delete the folder '%s'. Make sure it's empty first.
+== 
+
+Stop record
+== 
+
+Edit touch controls
+== 
+
+Save all changes before turning off the editor?
+== 
+
+Remote console
+== 
+
+Error loading touch controls
+== 
+
+Could not load touch controls from file. See local console for details.
+== 
+
+Could not load default touch controls from file. See local console for details.
+== 
+
+Could not load touch controls from clipboard. See local console for details.
+== 
+
+https://wiki.ddnet.org/wiki/Touch_controls
+== 
+
+Menu opened. Press Esc key again to close menu.
+== 
+
+[Touch button behavior]
+Bind
+== 
+
+[Touch button behavior]
+Bind Toggle
+== 
+
+Info
+== 
+
+[Touch button visibility preview]
+Included
+== 
+
+[Touch button visibility preview]
+Excluded
+== 
+
+Button browser
+== 
+
+You can select buttons directly in the list below, or long press on a touch button on the screen to select it. You can also move and resize buttons by touch.
+== 
+
+No buttons match your filter criteria
+== 
+
+Direct touch input while ingame
+== 
+
+[Direct touch input]
+Relative aim
+== 
+
+Direct touch input while spectating
+== 
+
+Preview visibilities
+== 
+
+Preview button visibility while the editor is active.
+== 
+
+You can manage your touch controls settings on this page. Only changes that are saved will be available after restarting the client. You can share your touch controls with others by exporting them to the clipboard.\n\nYou can find more detailed information about the touch controls on the DDNet Wiki.
+== 
+
+Open DDNet Wiki
+== 
+
+Error saving touch controls
+== 
+
+Could not save touch controls to file. See local console for details.
+== 
+
+Are you sure that you want to discard the current changes to the touch controls?
+== 
+
+Are you sure that you want to reset the touch controls to default?
+== 
+
+Are you sure that you want to import the touch controls from the clipboard? This will overwrite your current touch controls.
+== 
+
+Save all changes before switching selected button?
+== 
+
+There is not enough space available for the button. Check its visibilities and size.
+== 
+
+The selected button is not visible. Do you want to deselect it or edit its visibility?
+== 
+
+Width and height are required to be within the range from %d to %d.
+== 
+
+The selected button is overlapping with other buttons.
+== 
+
+There is not enough space available to place another button.
+== 
+
+[Touch button visibilities]
+Vote Active
+== 
+
+[Touch button visibilities]
+Rcon Authed
+== 
+
+[Touch button visibilities]
+Extra Menu
+== 
+
+[Predefined touch button behaviors]
+Extra Menu
+== 
+
+[Predefined touch button behaviors]
+Swap Action
+== 
+
+[Predefined touch button behaviors]
+Joystick Action
+== 
+
+[Predefined touch button behaviors]
+Joystick Aim
+== 
+
+[Predefined touch button behaviors]
+Joystick Relative Aim
+== 
+
+[Predefined touch button behaviors]
+Joystick Fire
+== 
+
+[Predefined touch button behaviors]
+Joystick Hook
+== 
+
+Buttons with this behavior execute console commands like regular key binds.
+== 
+
+Buttons with this behavior cycle between executing one of two or more specified commands.
+== 
+
+Buttons with this behavior execute some predefined actions.
+== 
+
+Opens the ingame menu immediately when released.
+== 
+
+The extra menu button which toggles visibility of buttons with "Extra Menu" visibilities. Also opens the ingame menu on long press.
+== 
+
+Opens the emoticon selector (this does not work with binds).
+== 
+
+Opens the spectator menu (this does not work with binds).
+== 
+
+Swaps the active action (fire and hook) for direct touch input and virtual joysticks.
+== 
+
+Uses the active action with the current aiming position.
+== 
+
+Virtual joystick which uses the active action.
+== 
+
+Virtual joystick which only aims without using an action.
+== 
+
+Virtual joystick which only aims and moves the mouse pointer relatively.
+== 
+
+Virtual joystick which always uses fire.
+== 
+
+Virtual joystick which always uses hook.
+== 
+
+Player is ingame, i.e. not spectating.
+== 
+
+Zoom is allowed on this server.
+== 
+
+A vote is currently active.
+== 
+
+Dummy is allowed on this server.
+== 
+
+Dummy is currently connected.
+== 
+
+Player is currently authed in rcon.
+== 
+
+Demo player is currently active.
+== 
+
+The extra menu with the given number is activated.
+== 
+
+Credits
 == 
 
 HUD
 == 
 
-Name Plate
-== 
-
 Hook Collisions
-== 
-
-Info Messages
-== 
-
-Show health, shields and ammo
-== 
-
-Show score
-== 
-
-Show local time always
 == 
 
 Show spectator cursor
 == 
 
 Show votes window after voting
-== 
-
-Scoreboard
 == 
 
 Authed name color in scoreboard
@@ -1901,80 +2314,16 @@ Show number of spectators
 Show player position
 == 
 
-Show player speed
-== 
-
-Show player target angle
-== 
-
 Show freeze bars
 == 
 
 Opacity of freeze bars inside freeze
 == 
 
-Always show chat
-== 
-
 Show names in chat in team colors
 == 
 
 Show only chat messages from friends
-== 
-
-Show only chat messages from team members
-== 
-
-Use old chat style
-== 
-
-Censor profanity
-== 
-
-Chat font size
-== 
-
-Chat width
-== 
-
-Chat background color
-== 
-
-Messages
-== 
-
-System message
-== 
-
-Highlighted message
-== 
-
-Client message
-== 
-
-Show name plates
-== 
-
-[Show name plates]
-None
-== 
-
-[Show name plates]
-Own
-== 
-
-[Show name plates]
-Others
-== 
-
-[Show name plates]
-All
-== 
-
-Name plates size
-== 
-
-Name plates offset
 == 
 
 Show clan above name plates
@@ -1996,9 +2345,6 @@ Show client IDs on a separate line
 == 
 
 Client IDs size
-== 
-
-Hook Strength
 == 
 
 Show hook strength icon indicator
@@ -2065,16 +2411,26 @@ Width of others' hook collision line
 Hook collision line opacity
 == 
 
-Colors of the hook collision line, in case of a possible collision with:
+Colors of the hook collision line:
 == 
 
 Your movements are not taken into account when calculating the line colors
 == 
 
-Nothing hookable
+[Hook collision line color]
+When nothing is hookable
 == 
 
-Something hookable
+[Hook collision line color]
+When something is hookable
+== 
+
+[Hook collision line color]
+When a Tee is hookable
+== 
+
+[Hook collision line color]
+Hook collision line tip
 == 
 
 Preview 'Hook collisions' being pressed
@@ -2131,6 +2487,54 @@ Dragger Inner Color
 Set all to Rifle
 == 
 
+Extras
+== 
+
+Loading assets
+== 
+
+Assets directory
+== 
+
+Open the directory to add custom assets
+== 
+
+Toggle dyncam
+== 
+
+Hammerfly dummy
+== 
+
+Teleport to cursor
+== 
+
+Teleport dummy to cursor
+== 
+
+Scoreboard cursor
+== 
+
+Statboard
+== 
+
+Show HUD
+== 
+
+Reset controls
+== 
+
+Are you sure that you want to reset the controls to their defaults?
+== 
+
+Practice
+== 
+
+Controller jitter tolerance
+== 
+
+Aim bind
+== 
+
 Save the best demo of each race
 == 
 
@@ -2170,16 +2574,10 @@ Show text entities
 Adjust the opacity of entities belonging to other teams, such as tees and name plates
 == 
 
-Show others (own team only)
+Prediction margin
 == 
 
-Show background quads
-== 
-
-Quads are used for background decoration
-== 
-
-Default zoom
+Predict events (experimental)
 == 
 
 AntiPing
@@ -2191,248 +2589,118 @@ Tries to predict other entities to give a feel of low latency
 AntiPing: predict other players
 == 
 
+[AntiPing: predict other players]
+Off
+== 
+
+[AntiPing: predict other players]
+All
+== 
+
+[AntiPing: predict other players]
+Interact
+== 
+
+Always predict frozen players
+== 
+
 AntiPing: predict weapons
 == 
 
 AntiPing: predict grenade paths
 == 
 
-AntiPing: prediction margin
-== 
-
-Background
-== 
-
-Regular background color
-== 
-
-Entities background color
-== 
-
-Use current map as background
-== 
-
 Show tiles layers from BG map
-== 
-
-Miscellaneous
-== 
-
-New random timeout code
 == 
 
 Run on join
 == 
 
-Chat command (e.g. showall 1)
+Dynamic Camera
 == 
 
-Unregister protocol and file extensions
+Smooth Dynamic Camera
 == 
 
-DDNet Client updated!
+Switch weapon when out of ammo
 == 
 
-No updates available
+Update Rate
+== 
+
+Save power by lowering update rate (higher input latency)
+== 
+
+Saves file
+== 
+
+Open the saves file
+== 
+
+Open the directory that contains the configuration and user files
+== 
+
+Automatically take statboard screenshot
+== 
+
+Automatically create statboard csv
+== 
+
+may cause delay
+== 
+
+FSAA samples
+== 
+
+Allows maps to render with more detail
+== 
+
+Renders your frame rate in the top right
+== 
+
+Player info change cooldown
+== 
+
+No country flags match your filter criteria
+== 
+
+Enable long pain sound (used when shooting in freeze)
+== 
+
+Enable server message sound
+== 
+
+Enable regular chat sound
+== 
+
+Enable team chat sound
+== 
+
+Enable highlighted chat sound
+== 
+
+Skin could not be loaded due to an error. Check the local console for details.
+== 
+
+No skins match your filter criteria
 == 
 
 Basic
 == 
 
-Custom
-== 
-
-Are you sure that you want to delete '%s'?
-== 
-
-Delete skin
-== 
-
-Unable to delete skin
-== 
-
-Emoticons
-== 
-
-Particles
-== 
-
-Extras
-== 
-
-Loading assets
-== 
-
-Assets directory
-== 
-
-Open the directory to add custom assets
-== 
-
-Hook collisions
-== 
-
-Zoom in
-== 
-
-Zoom out
-== 
-
-Toggle dyncam
-== 
-
-Toggle ghost
-== 
-
-Shotgun
-== 
-
-Grenade
-== 
-
-Next weapon
-== 
-
-Prev. weapon
-== 
-
-Team chat
-== 
-
-Converse
-== 
-
-Chat command
-== 
-
-Toggle dummy
-== 
-
-Dummy copy
-== 
-
-Hammerfly dummy
-== 
-
-Emoticon
-== 
-
-Spectator mode
-== 
-
-Spectate next
-== 
-
-Spectate previous
-== 
-
-Screenshot
-== 
-
-Scoreboard cursor
-== 
-
-Statboard
-== 
-
-Lock team
-== 
-
-Show entities
-== 
-
-Show HUD
-== 
-
-Reset controls
-== 
-
-Are you sure that you want to reset the controls to their defaults?
-== 
-
-Controller
-== 
-
-Movement
-== 
-
-Voting
-== 
-
-Ingame mouse sens.
-== 
-
-UI mouse sens.
-== 
-
-Enable controller
-== 
-
-Ingame controller mode
-== 
-
-[Ingame controller mode]
-Relative
-== 
-
-[Ingame controller mode]
-Absolute
-== 
-
-Ingame controller sens.
-== 
-
-UI controller sens.
-== 
-
-Controller jitter tolerance
-== 
-
-No controller found. Plug in a controller.
-== 
-
-Axis
-== 
-
-Status
-== 
-
-Aim bind
-== 
-
-Can't find a Tutorial server
-== 
-
-Update failed! Check log…
-== 
-
-Download
+Join
 == 
 
 Loading race demo files
 == 
 
-[Spectators]
-%d others…
-== 
-
-Score
-== 
-
 Super
 == 
 
-[Team and size]
-%d\n(%d/%d)
+not bound
 == 
 
-Team %d (%d/%d)
-== 
-
-Manual
-== 
-
-Race
+Show cursor
 == 
 
 Auto
@@ -2441,70 +2709,7 @@ Auto
 Replay
 == 
 
-Red team wins!
-== 
-
-%s wins!
-== 
-
-Blue team wins!
-== 
-
-Draw!
-== 
-
-Game over
-== 
-
-Add friend
-== 
-
-Unmute
-== 
-
-Mute
-== 
-
-Unmute emoticons
-== 
-
-Mute emoticons
-== 
-
-[skins]
-Body
-== 
-
-[skins]
-Marking
-== 
-
-[skins]
-Decoration
-== 
-
-[skins]
-Hands
-== 
-
-[skins]
-Feet
-== 
-
-[skins]
-Eyes
-== 
-
-Loading sound files
-== 
-
 Frags
-== 
-
-Suicides
-== 
-
-Ratio
 == 
 
 Net
@@ -2517,22 +2722,4 @@ Spree
 == 
 
 Best
-== 
-
-Grabs
-== 
-
-Aim
-== 
-
-Active: Fire
-== 
-
-Active: Hook
-== 
-
-Moved ingame
-== 
-
-https://wiki.ddnet.org/wiki/Mapping
 == 

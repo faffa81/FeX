@@ -1,8 +1,33 @@
+/* (c) Magnus Auvinen. See licence.txt in the root of the distribution for more information. */
+/* If you are missing that file, acquire a complete release at teeworlds.com.                */
+
 #ifndef BASE_STR_H
 #define BASE_STR_H
 
+#include <array>
+#include <cinttypes>
+#include <cstdarg>
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
+
+/**
+ * String related functions.
+ *
+ * @defgroup Strings Strings
+ */
+
+#ifdef __MINGW32__
+#undef PRId64
+#undef PRIu64
+#undef PRIX64
+#define PRId64 "I64d"
+#define PRIu64 "I64u"
+#define PRIX64 "I64X"
+#define PRIzu "Iu"
+#else
+#define PRIzu "zu"
+#endif
 
 /**
  * Copies a string to another.
@@ -16,6 +41,7 @@
  * @return Length of written string, even if it has been truncated
  *
  * @remark The strings are treated as null-terminated strings.
+ * @remark At most dst_size bytes are read from src.
  * @remark Guarantees that dst string will contain null-termination.
  */
 int str_copy(char *dst, const char *src, int dst_size);
@@ -35,6 +61,23 @@ template<int N>
 void str_copy(char (&dst)[N], const char *src)
 {
 	str_copy(dst, src, N);
+}
+
+/**
+ * Copies a string to a fixed-size std::array of chars.
+ *
+ * @ingroup Strings
+ *
+ * @param dst Array that shall receive the string.
+ * @param src String to be copied.
+ *
+ * @remark The strings are treated as null-terminated strings.
+ * @remark Guarantees that dst string will contain null-termination.
+ */
+template<size_t N>
+void str_copy(std::array<char, N> &dst, const char *src)
+{
+	str_copy(dst.data(), src, static_cast<int>(N));
 }
 
 /**
@@ -95,13 +138,75 @@ void str_truncate(char *dst, int dst_size, const char *src, int truncation_len);
  */
 int str_length(const char *str);
 
+/**
+ * Performs printf formatting into a buffer.
+ *
+ * @ingroup Strings
+ *
+ * @param buffer Pointer to the buffer to receive the formatted string.
+ * @param buffer_size Size of the buffer.
+ * @param format printf formatting string.
+ * @param args The variable argument list.
+ *
+ * @return Length of written string, even if it has been truncated.
+ *
+ * @remark See the C manual for syntax for the printf formatting string.
+ * @remark The strings are treated as null-terminated strings.
+ * @remark Guarantees that buffer string will contain null-termination.
+ */
+[[gnu::format(printf, 3, 0)]] int str_format_v(char *buffer, int buffer_size, const char *format, va_list args);
+
+/**
+ * Performs printf formatting into a buffer.
+ *
+ * @ingroup Strings
+ *
+ * @param buffer Pointer to the buffer to receive the formatted string.
+ * @param buffer_size Size of the buffer.
+ * @param format printf formatting string.
+ * @param ... Parameters for the formatting.
+ *
+ * @return Length of written string, even if it has been truncated.
+ *
+ * @remark See the C manual for syntax for the printf formatting string.
+ * @remark The strings are treated as null-terminated strings.
+ * @remark Guarantees that buffer string will contain null-termination.
+ */
+[[gnu::format(printf, 3, 4)]] int str_format(char *buffer, int buffer_size, const char *format, ...);
+
+#if !defined(CONF_DEBUG)
+int str_format_int(char *buffer, size_t buffer_size, int value);
+
+template<typename... Args>
+int str_format_opt(char *buffer, int buffer_size, const char *format, Args... args)
+{
+	static_assert(sizeof...(args) > 0, "Use str_copy instead of str_format without format arguments");
+	return str_format(buffer, buffer_size, format, args...);
+}
+
+template<>
+inline int str_format_opt(char *buffer, int buffer_size, const char *format, int val) // NOLINT(readability-inconsistent-declaration-parameter-name)
+{
+	if(strcmp(format, "%d") == 0)
+	{
+		return str_format_int(buffer, buffer_size, val);
+	}
+	else
+	{
+		return str_format(buffer, buffer_size, format, val);
+	}
+}
+
+#define str_format str_format_opt
+#endif
+
 char str_uppercase(char c);
 
 bool str_isnum(char c);
 
-int str_isallnum(const char *str);
+bool str_isallnum(const char *str);
 
-int str_isallnum_hex(const char *str);
+bool str_isallnum_hex(const char *str);
 
 /**
  * Determines whether a character is whitespace.
@@ -110,11 +215,11 @@ int str_isallnum_hex(const char *str);
  *
  * @param c the character to check.
  *
- * @return `1` if the character is whitespace, `0` otherwise.
+ * @return `true` if the character is whitespace, `false` otherwise.
  *
  * @remark The following characters are considered whitespace: ` `, `\n`, `\r`, `\t`.
  */
-int str_isspace(char c);
+bool str_isspace(char c);
 
 /**
  * Trims specific number of words at the start of a string.
@@ -430,7 +535,7 @@ const char *str_find(const char *haystack, const char *needle);
  *
  * @remark The token is always null-terminated.
  */
-const char *str_next_token(const char *str, const char *delim, char *buffer, int buffer_size);
+const char *str_next_token(const char *str, const char *delim, char *buffer, size_t buffer_size);
 
 /**
  * Checks if needle is in list delimited by delim.
@@ -444,7 +549,7 @@ const char *str_next_token(const char *str, const char *delim, char *buffer, int
  *
  * @remark The strings are treated as null-terminated strings.
  */
-int str_in_list(const char *list, const char *delim, const char *needle);
+bool str_in_list(const char *list, const char *delim, const char *needle);
 
 /**
  * @ingroup Strings
@@ -583,6 +688,15 @@ int str_base64_decode(void *dst, int dst_size, const char *data);
  */
 void str_escape(char **dst, const char *src, const char *end);
 
+/**
+ * Replaces pairs of `\` and `n` characters in a string with newline character `\n`.
+ *
+ * @param str String to unescape in place.
+ *
+ * @remark The strings are treated as null-terminated strings.
+ */
+void str_unescape_newlines(char *str);
+
 int str_toint(const char *str);
 bool str_toint(const char *str, int *out);
 int str_toint_base(const char *str, int base);
@@ -686,7 +800,7 @@ void str_utf8_tolower(const char *input, char *output, size_t size);
  *
  * @return Whether the codepoint is a space.
  */
-int str_utf8_isspace(int code);
+bool str_utf8_isspace(int code);
 
 /**
  * Checks whether a given byte is the start of a UTF-8 character.
@@ -697,7 +811,7 @@ int str_utf8_isspace(int code);
  *
  * @return Whether the char starts a UTF-8 character.
  */
-int str_utf8_isstart(char c);
+bool str_utf8_isstart(char c);
 
 /**
  * Moves a cursor backwards in an UTF-8 string,
@@ -795,11 +909,11 @@ int str_utf8_forward(const char *str, int cursor);
  *
  * @param str Pointer to a possible UTF-8 string.
  *
- * @return `0` if invalid characters were found, `1` if only valid characters were found.
+ * @return `false` if invalid characters were found, `true` if only valid characters were found.
  *
  * @remark The string is treated as null-terminated UTF-8 string.
  */
-int str_utf8_check(const char *str);
+bool str_utf8_check(const char *str);
 
 /**
  * Copies a number of UTF-8 characters from one string to another.
@@ -861,5 +975,80 @@ size_t str_utf8_offset_bytes_to_chars(const char *str, size_t byte_offset);
  * @remark It's the user's responsibility to make sure the bounds are aligned.
  */
 size_t str_utf8_offset_chars_to_bytes(const char *str, size_t char_offset);
+
+/**
+ * Computes the edit distance between two strings.
+ *
+ * @param a First string for the edit distance.
+ * @param b Second string for the edit distance.
+ *
+ * @return The edit distance between the both strings.
+ *
+ * @remark The strings are treated as null-terminated strings.
+ */
+int str_utf8_dist(const char *a, const char *b);
+
+/**
+ * Computes the edit distance between two strings, allows buffers
+ * to be passed in.
+ *
+ * @ingroup Strings
+ *
+ * @param a First string for the edit distance.
+ * @param b Second string for the edit distance.
+ * @param buf Buffer for the function.
+ * @param buf_len Length of the buffer, must be at least as long as
+ *                twice the length of both strings combined plus two.
+ *
+ * @return The edit distance between the both strings.
+ *
+ * @remark The strings are treated as null-terminated strings.
+ */
+int str_utf8_dist_buffer(const char *a, const char *b, int *buf, int buf_len);
+
+/**
+ * Computes the edit distance between two strings, allows buffers
+ * to be passed in.
+ *
+ * @ingroup Strings
+ *
+ * @param a First string for the edit distance.
+ * @param a_len Length of the first string.
+ * @param b Second string for the edit distance.
+ * @param b_len Length of the second string.
+ * @param buf Buffer for the function.
+ * @param buf_len Length of the buffer, must be at least as long as
+ *                the length of both strings combined plus two.
+ *
+ * @return The edit distance between the both strings.
+ *
+ * @remark The strings are treated as null-terminated strings.
+ */
+int str_utf32_dist_buffer(const int *a, int a_len, const int *b, int b_len, int *buf, int buf_len);
+
+int str_utf8_to_skeleton(const char *str, int *buf, int buf_len);
+
+/**
+ * Checks if two strings only differ by confusable characters.
+ *
+ * @ingroup Strings
+ *
+ * @param str1 String to compare.
+ * @param str2 String to compare.
+ *
+ * @return `0` if the strings are confusables.
+ */
+int str_utf8_comp_confusable(const char *str1, const char *str2);
+
+/**
+ * Converts the given Unicode codepoint to lowercase (locale insensitive).
+ *
+ * @ingroup Strings
+ *
+ * @param code Unicode codepoint to convert.
+ *
+ * @return Lowercase codepoint, or the original codepoint if there is no lowercase version.
+ */
+int str_utf8_tolower_codepoint(int code);
 
 #endif

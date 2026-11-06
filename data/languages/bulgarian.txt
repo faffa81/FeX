@@ -22,9 +22,6 @@ Abort
 Add
 == Добави
 
-Add Friend
-== Добави Приятел
-
 Address
 == Адрес
 
@@ -497,6 +494,9 @@ Name plates size
 English translation by the DDNet Team
 == Bulgarian translation by Hip-Hop_Blond
 
+Add friend
+== Добави Приятел
+
 [Graphics error]
 Failed during initialization. Try to change gfx_backend to OpenGL or Vulkan in settings_ddnet.cfg in the config directory and try again.
 == 
@@ -641,6 +641,9 @@ Save failed!
 Search
 == 
 
+Hold Shift to be more precise.
+== 
+
 Auto-sync player camera
 == 
 
@@ -697,6 +700,9 @@ Loading commands…
 Loading maps…
 == 
 
+Dummy is not connected
+== 
+
 Debug mode enabled. Press Ctrl+Shift+D to disable debug mode.
 == 
 
@@ -734,6 +740,10 @@ Personal best:
 == 
 
 [Important alert message]
+Tap to dismiss…
+== 
+
+[Important alert message]
 Press Esc or Tab to dismiss…
 == 
 
@@ -764,7 +774,7 @@ Some map images could not be loaded. Check the local console for details.
 Loading map
 == 
 
-Uploading map data to GPU
+Initializing layers
 == 
 
 Some map sounds could not be loaded. Check the local console for details.
@@ -824,6 +834,9 @@ It's recommended that you check the settings to adjust them to your liking befor
 Please enter your nickname below.
 == 
 
+Joining Tutorial server
+== 
+
 Existing Player
 == 
 
@@ -843,6 +856,9 @@ There's an unsaved map in the editor, you might want to save it.
 == 
 
 Continue anyway?
+== 
+
+There's an unsaved change in the touch controls editor, you might want to save it.
 == 
 
 This name cannot be used for files and folders
@@ -893,6 +909,39 @@ Show DDNet map finishes in server browser
 transmits your player name to info.ddnet.org
 == 
 
+Getting server list from master server
+== 
+
+Could not get server list from master server
+== 
+
+There are no Tutorial servers available
+== 
+
+Please wait…
+== 
+
+Retrying…
+== 
+
+Error joining Tutorial server
+== 
+
+Could not find a Tutorial server. Check your internet connection.
+== 
+
+You're playing on a local server because no online Tutorial server could be found.\n\nYour record will only be saved locally.
+== 
+
+Could not find online Tutorial server.\nStarting and connecting to local server…
+== 
+
+Waiting for local server to stop…
+== 
+
+Waiting for local server to start…
+== 
+
 Cancel
 == 
 
@@ -929,9 +978,6 @@ Getting game info
 Requesting to join the game
 == 
 
-Theme
-== 
-
 Loading menu images
 == 
 
@@ -956,13 +1002,10 @@ SA
 CHN
 == 
 
-Getting server list from master server
-== 
-
 No local servers found (ports %d-%d)
 == 
 
-Could not get server list from master server
+Start and connect to local server
 == 
 
 Example of usage
@@ -1007,6 +1050,15 @@ Types
 Communities
 == 
 
+Error loading communities
+== 
+
+Click to remove this community from your favorites.
+== 
+
+Click to add this community to your favorites.
+== 
+
 Copy info
 == 
 
@@ -1047,7 +1099,7 @@ Are you sure that you want to remove the player '%s' from your friends list?
 Are you sure that you want to remove the clan '%s' from your friends list?
 == 
 
-Add Clan
+Add clan
 == 
 
 Server filter
@@ -1193,6 +1245,9 @@ Map size
 map not included
 == 
 
+Refresh the demo list
+== 
+
 Fetch Info
 == 
 
@@ -1200,6 +1255,12 @@ Demos directory
 == 
 
 Open the directory that contains the demo files
+== 
+
+Open the selected folder
+== 
+
+Play the selected demo
 == 
 
 Are you sure that you want to disconnect and play this demo?
@@ -1227,9 +1288,6 @@ Connect Dummy
 == 
 
 Dummy is not allowed on this server
-== 
-
-Please wait…
 == 
 
 Connecting dummy
@@ -1272,6 +1330,9 @@ Could not load default touch controls from file. See local console for details.
 == 
 
 Could not load touch controls from clipboard. See local console for details.
+== 
+
+https://wiki.ddnet.org/wiki/Touch_controls
 == 
 
 Community
@@ -1358,22 +1419,7 @@ Are you sure that you want to delete this button?
 Duplicate
 == 
 
-New button already created
-== 
-
-A new button has already been created, please save or delete it before creating another one.
-== 
-
 Please save your changes before duplicating a button.
-== 
-
-No space for button
-== 
-
-There is not enough space available to place another button.
-== 
-
-There is not enough space available to place another button with this size. The button has been resized.
 == 
 
 Deselect
@@ -1426,6 +1472,9 @@ Bind Toggle
 Predefined
 == 
 
+Info
+== 
+
 Command
 == 
 
@@ -1453,7 +1502,10 @@ Excluded
 Ignore
 == 
 
-Long press on a touch button to select it.
+Button browser
+== 
+
+You can select buttons directly in the list below, or long press on a touch button on the screen to select it. You can also move and resize buttons by touch.
 == 
 
 New button
@@ -1496,6 +1548,10 @@ Aim
 == 
 
 [Direct touch input]
+Relative aim
+== 
+
+[Direct touch input]
 Fire
 == 
 
@@ -1506,13 +1562,19 @@ Hook
 Direct touch input while spectating
 == 
 
+Preview visibilities
+== 
+
 Preview button visibility while the editor is active.
 == 
 
 Show all buttons
 == 
 
-https://wiki.ddnet.org/wiki/Touch_controls
+You can manage your touch controls settings on this page. Only changes that are saved will be available after restarting the client. You can share your touch controls with others by exporting them to the clipboard.\n\nYou can find more detailed information about the touch controls on the DDNet Wiki.
+== 
+
+Open DDNet Wiki
 == 
 
 Error saving touch controls
@@ -1542,6 +1604,9 @@ Save all changes before switching selected button?
 Discard
 == 
 
+No space for button
+== 
+
 There is not enough space available for the button. Check its visibilities and size.
 == 
 
@@ -1564,6 +1629,9 @@ The selected button is overlapping with other buttons.
 == 
 
 Wrong button settings
+== 
+
+There is not enough space available to place another button.
 == 
 
 [Touch button visibilities]
@@ -1631,6 +1699,10 @@ Joystick Aim
 == 
 
 [Predefined touch button behaviors]
+Joystick Relative Aim
+== 
+
+[Predefined touch button behaviors]
 Joystick Fire
 == 
 
@@ -1638,179 +1710,70 @@ Joystick Fire
 Joystick Hook
 == 
 
-Smooth Dynamic Camera
+Buttons with this behavior execute console commands like regular key binds.
 == 
 
-Switch weapon when out of ammo
+Buttons with this behavior cycle between executing one of two or more specified commands.
 == 
 
-Skip the main menu
+Buttons with this behavior execute some predefined actions.
 == 
 
-[Hertz]
-Hz
+Opens the ingame menu immediately when released.
 == 
 
-Refresh Rate
+The extra menu button which toggles visibility of buttons with "Extra Menu" visibilities. Also opens the ingame menu on long press.
 == 
 
-Save power by lowering refresh rate (higher input latency)
+Opens the emoticon selector (this does not work with binds).
 == 
 
-Settings file
+Opens the spectator menu (this does not work with binds).
 == 
 
-Open the settings file
+Swaps the active action (fire and hook) for direct touch input and virtual joysticks.
 == 
 
-Saves file
+Uses the active action with the current aiming position.
 == 
 
-Open the saves file
+Virtual joystick which uses the active action.
 == 
 
-Config directory
+Virtual joystick which only aims without using an action.
 == 
 
-Open the directory that contains the configuration and user files
+Virtual joystick which only aims and moves the mouse pointer relatively.
 == 
 
-Themes directory
+Virtual joystick which always uses fire.
 == 
 
-Open the directory to add custom themes
+Virtual joystick which always uses hook.
 == 
 
-Automatically take statboard screenshot
+Player is ingame, i.e. not spectating.
 == 
 
-Automatically create statboard csv
+Zoom is allowed on this server.
 == 
 
-Max CSVs
+A vote is currently active.
 == 
 
-Dummy
+Dummy is allowed on this server.
 == 
 
-Player info change cooldown
+Dummy is currently connected.
 == 
 
-Download skins
+Player is currently authed in rcon.
 == 
 
-Download community skins
+Demo player is currently active.
 == 
 
-Vanilla skins only
-== 
-
-Fat skins (DDFat)
-== 
-
-Skin prefix
-== 
-
-This skin name cannot be used.
-== 
-
-Skin could not be loaded due to an error. Check the local console for details.
-== 
-
-Skin could not be found.
-== 
-
-Create a random skin
-== 
-
-Choose default eyes when joining a server
-== 
-
-No skins match your filter criteria
-== 
-
-Skin Database
-== 
-
-Skins directory
-== 
-
-Open the directory to add custom skins
-== 
-
-Windowed
-== 
-
-Windowed borderless
-== 
-
-Windowed fullscreen
-== 
-
-Desktop fullscreen
-== 
-
-Screen
-== 
-
-may cause delay
-== 
-
-Allows maps to render with more detail
-== 
-
-Show FPS
-== 
-
-Renders your frame rate in the top right
-== 
-
-Renderer
-== 
-
-default
-== 
-
-custom
-== 
-
-Graphics card
-== 
-
-auto
-== 
-
-Enable game sounds
-== 
-
-Enable gun sound
-== 
-
-Enable long pain sound (used when shooting in freeze)
-== 
-
-Enable server message sound
-== 
-
-Enable regular chat sound
-== 
-
-Enable team chat sound
-== 
-
-Enable highlighted chat sound
-== 
-
-Game sound volume
-== 
-
-Chat sound volume
-== 
-
-Map sound volume
-== 
-
-Background music volume
+The extra menu with the given number is activated.
 == 
 
 Tee
@@ -1823,6 +1786,9 @@ DDNet
 == 
 
 Assets
+== 
+
+Credits
 == 
 
 DDNet Client needs to be restarted to complete update!
@@ -2046,19 +2012,26 @@ Width of others' hook collision line
 Hook collision line opacity
 == 
 
-Colors of the hook collision line, in case of a possible collision with:
+Colors of the hook collision line:
 == 
 
 Your movements are not taken into account when calculating the line colors
 == 
 
-Nothing hookable
+[Hook collision line color]
+When nothing is hookable
 == 
 
-Something hookable
+[Hook collision line color]
+When something is hookable
 == 
 
-A Tee
+[Hook collision line color]
+When a Tee is hookable
+== 
+
+[Hook collision line color]
+Hook collision line tip
 == 
 
 Preview 'Hook collisions' being pressed
@@ -2115,6 +2088,149 @@ Dragger Inner Color
 Set all to Rifle
 == 
 
+Emoticons
+== 
+
+Particles
+== 
+
+Extras
+== 
+
+Loading assets
+== 
+
+Assets directory
+== 
+
+Open the directory to add custom assets
+== 
+
+Hook collisions
+== 
+
+Zoom in
+== 
+
+Zoom out
+== 
+
+Default zoom
+== 
+
+Show others
+== 
+
+Show all
+== 
+
+Toggle dyncam
+== 
+
+Toggle ghost
+== 
+
+Converse
+== 
+
+Chat command
+== 
+
+Toggle dummy
+== 
+
+Dummy copy
+== 
+
+Hammerfly dummy
+== 
+
+Teleport to cursor
+== 
+
+Teleport dummy to cursor
+== 
+
+Spectate previous
+== 
+
+Scoreboard cursor
+== 
+
+Statboard
+== 
+
+Lock team
+== 
+
+Show entities
+== 
+
+Show HUD
+== 
+
+Reset controls
+== 
+
+Are you sure that you want to reset the controls to their defaults?
+== 
+
+Mouse
+== 
+
+Controller
+== 
+
+Dummy
+== 
+
+Practice
+== 
+
+Custom
+== 
+
+Ingame mouse sens.
+== 
+
+UI mouse sens.
+== 
+
+Enable controller
+== 
+
+Ingame controller mode
+== 
+
+[Ingame controller mode]
+Relative
+== 
+
+[Ingame controller mode]
+Absolute
+== 
+
+Ingame controller sens.
+== 
+
+UI controller sens.
+== 
+
+Controller jitter tolerance
+== 
+
+No controller found. Plug in a controller.
+== 
+
+Axis
+== 
+
+Status
+== 
+
+Aim bind
+== 
+
 Save the best demo of each race
 == 
 
@@ -2151,9 +2267,6 @@ Overlay entities
 Show text entities
 == 
 
-Show others
-== 
-
 Adjust the opacity of entities belonging to other teams, such as tees and name plates
 == 
 
@@ -2166,7 +2279,10 @@ Show background quads
 Quads are used for background decoration
 == 
 
-Default zoom
+Prediction margin
+== 
+
+Predict events (experimental)
 == 
 
 AntiPing
@@ -2178,13 +2294,25 @@ Tries to predict other entities to give a feel of low latency
 AntiPing: predict other players
 == 
 
+[AntiPing: predict other players]
+Off
+== 
+
+[AntiPing: predict other players]
+All
+== 
+
+[AntiPing: predict other players]
+Interact
+== 
+
+Always predict frozen players
+== 
+
 AntiPing: predict weapons
 == 
 
 AntiPing: predict grenade paths
-== 
-
-AntiPing: prediction margin
 == 
 
 Background
@@ -2232,10 +2360,188 @@ No updates available
 Check now
 == 
 
-Basic
+Smooth Dynamic Camera
 == 
 
-Custom
+Switch weapon when out of ammo
+== 
+
+Skip the main menu
+== 
+
+[Hertz]
+Hz
+== 
+
+Update Rate
+== 
+
+Save power by lowering update rate (higher input latency)
+== 
+
+Settings file
+== 
+
+Open the settings file
+== 
+
+Saves file
+== 
+
+Open the saves file
+== 
+
+Config directory
+== 
+
+Open the directory that contains the configuration and user files
+== 
+
+Themes directory
+== 
+
+Open the directory to add custom themes
+== 
+
+Automatically take statboard screenshot
+== 
+
+Automatically create statboard csv
+== 
+
+Max CSVs
+== 
+
+Theme
+== 
+
+Windowed
+== 
+
+Windowed borderless
+== 
+
+Windowed fullscreen
+== 
+
+Desktop fullscreen
+== 
+
+Screen
+== 
+
+may cause delay
+== 
+
+Allows maps to render with more detail
+== 
+
+Show FPS
+== 
+
+Renders your frame rate in the top right
+== 
+
+Refresh Rate
+== 
+
+Renderer
+== 
+
+default
+== 
+
+custom
+== 
+
+Graphics card
+== 
+
+auto
+== 
+
+Player info change cooldown
+== 
+
+No country flags match your filter criteria
+== 
+
+Enable game sounds
+== 
+
+Enable gun sound
+== 
+
+Enable long pain sound (used when shooting in freeze)
+== 
+
+Enable server message sound
+== 
+
+Enable regular chat sound
+== 
+
+Enable team chat sound
+== 
+
+Enable highlighted chat sound
+== 
+
+Game sound volume
+== 
+
+Chat sound volume
+== 
+
+Map sound volume
+== 
+
+Background music volume
+== 
+
+Download skins
+== 
+
+Download community skins
+== 
+
+Vanilla skins only
+== 
+
+Fat skins (DDFat)
+== 
+
+Skin prefix
+== 
+
+This skin name cannot be used.
+== 
+
+Skin could not be loaded due to an error. Check the local console for details.
+== 
+
+Skin could not be found.
+== 
+
+Create a random skin
+== 
+
+Choose default eyes when joining a server
+== 
+
+No skins match your filter criteria
+== 
+
+Skin Database
+== 
+
+Skins directory
+== 
+
+Open the directory to add custom skins
+== 
+
+Basic
 == 
 
 Are you sure that you want to delete '%s'?
@@ -2245,128 +2551,6 @@ Delete skin
 == 
 
 Unable to delete skin
-== 
-
-Emoticons
-== 
-
-Particles
-== 
-
-Extras
-== 
-
-Loading assets
-== 
-
-Assets directory
-== 
-
-Open the directory to add custom assets
-== 
-
-Hook collisions
-== 
-
-Zoom in
-== 
-
-Zoom out
-== 
-
-Show all
-== 
-
-Toggle dyncam
-== 
-
-Toggle ghost
-== 
-
-Converse
-== 
-
-Chat command
-== 
-
-Toggle dummy
-== 
-
-Dummy copy
-== 
-
-Hammerfly dummy
-== 
-
-Spectate previous
-== 
-
-Scoreboard cursor
-== 
-
-Statboard
-== 
-
-Lock team
-== 
-
-Show entities
-== 
-
-Show HUD
-== 
-
-Reset controls
-== 
-
-Are you sure that you want to reset the controls to their defaults?
-== 
-
-Mouse
-== 
-
-Controller
-== 
-
-Ingame mouse sens.
-== 
-
-UI mouse sens.
-== 
-
-Enable controller
-== 
-
-Ingame controller mode
-== 
-
-[Ingame controller mode]
-Relative
-== 
-
-[Ingame controller mode]
-Absolute
-== 
-
-Ingame controller sens.
-== 
-
-UI controller sens.
-== 
-
-Controller jitter tolerance
-== 
-
-No controller found. Plug in a controller.
-== 
-
-Axis
-== 
-
-Status
-== 
-
-Aim bind
 == 
 
 Discord
@@ -2384,10 +2568,10 @@ https://wiki.ddnet.org/
 Tutorial
 == 
 
-Can't find a Tutorial server
+Website
 == 
 
-Website
+Join
 == 
 
 Stop server
@@ -2429,6 +2613,12 @@ Super
 Team %d (%d/%d)
 == 
 
+not bound
+== 
+
+Show cursor
+== 
+
 Manual
 == 
 
@@ -2439,9 +2629,6 @@ Auto
 == 
 
 Replay
-== 
-
-Add friend
 == 
 
 Unmute

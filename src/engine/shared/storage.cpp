@@ -1,9 +1,13 @@
 /* (c) Magnus Auvinen. See licence.txt in the root of the distribution for more information. */
 /* If you are missing that file, acquire a complete release at teeworlds.com.                */
+#include <base/dbg.h>
+#include <base/fs.h>
 #include <base/hash_ctxt.h>
+#include <base/io.h>
 #include <base/log.h>
 #include <base/math.h>
-#include <base/system.h>
+#include <base/process.h>
+#include <base/str.h>
 
 #include <engine/client/updater.h>
 #include <engine/shared/linereader.h>
@@ -102,10 +106,12 @@ public:
 			"dumps",
 			"demos",
 			"demos/auto",
+			"demos/auto/marked",
 			"demos/auto/race",
 			"demos/auto/server",
 			"demos/replays",
 			"editor",
+			"editor/automap",
 			"ghosts",
 			"teehistorian"};
 
@@ -285,7 +291,7 @@ public:
 		// 2) use compiled-in data-dir if present
 		if(fs_is_dir(DATA_DIR "/mapres"))
 		{
-			str_copy(m_aDatadir, DATA_DIR, sizeof(m_aDatadir));
+			str_copy(m_aDatadir, DATA_DIR);
 			return;
 		}
 #endif
@@ -293,7 +299,7 @@ public:
 		// 3) check for usable path in argv[0]
 		{
 #ifdef CONF_PLATFORM_HAIKU
-			pArgv0 = realpath(pArgv0, NULL);
+			pArgv0 = realpath(pArgv0, nullptr);
 #endif
 			unsigned int Pos = ~0U;
 			for(unsigned i = 0; pArgv0[i]; i++)
@@ -358,9 +364,15 @@ public:
 	void FindBinaryDirectory(const char *pArgv0)
 	{
 #if defined(BINARY_DIR)
-		str_copy(m_aBinarydir, BINARY_DIR, sizeof(m_aBinarydir));
+		str_copy(m_aBinarydir, BINARY_DIR);
 		return;
 #endif
+
+		if(fs_executable_path(m_aBinarydir, sizeof(m_aBinarydir)) == 0)
+		{
+			dbg_assert(fs_parent_dir(m_aBinarydir) == 0, "Could not determine parent of executable: '%s'", m_aBinarydir);
+			return;
+		}
 
 		// check for usable path in argv[0]
 		{
@@ -378,14 +390,12 @@ public:
 				{
 					return;
 				}
-#if defined(CONF_PLATFORM_MACOS)
-				str_append(m_aBinarydir, "/../../../DDNet-Server.app/Contents/MacOS");
-				str_format(aBuf, sizeof(aBuf), "%s/" PLAT_SERVER_EXEC, m_aBinarydir);
+				// Also look for client binary. (see https://github.com/ddnet/ddnet/issues/11418)
+				str_format(aBuf, sizeof(aBuf), "%s/" PLAT_CLIENT_EXEC, m_aBinarydir);
 				if(fs_is_file(aBuf))
 				{
 					return;
 				}
-#endif
 			}
 		}
 
@@ -887,7 +897,9 @@ public:
 			}
 		}
 		else
+		{
 			str_copy(pBuffer, aBinaryPath, BufferSize);
+		}
 		return pBuffer;
 	}
 
@@ -903,31 +915,9 @@ public:
 	}
 };
 
-void IStorage::StripPathAndExtension(const char *pFilename, char *pBuffer, int BufferSize)
-{
-	const char *pFilenameEnd = pFilename + str_length(pFilename);
-	const char *pExtractedName = pFilename;
-	const char *pEnd = pFilenameEnd;
-	for(const char *pIter = pFilename; *pIter; pIter++)
-	{
-		if(*pIter == '/' || *pIter == '\\')
-		{
-			pExtractedName = pIter + 1;
-			pEnd = pFilenameEnd;
-		}
-		else if(*pIter == '.')
-		{
-			pEnd = pIter;
-		}
-	}
-
-	int Length = minimum(BufferSize, (int)(pEnd - pExtractedName + 1));
-	str_copy(pBuffer, pExtractedName, Length);
-}
-
 const char *IStorage::FormatTmpPath(char *aBuf, unsigned BufSize, const char *pPath)
 {
-	str_format(aBuf, BufSize, "%s.%d.tmp", pPath, pid());
+	str_format(aBuf, BufSize, "%s.%d.tmp", pPath, process_id());
 	return aBuf;
 }
 

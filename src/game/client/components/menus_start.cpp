@@ -3,6 +3,7 @@
 #include "menus_start.h"
 
 #include <engine/client/updater.h>
+#include <engine/font_icons.h>
 #include <engine/graphics.h>
 #include <engine/keys.h>
 #include <engine/serverbrowser.h>
@@ -19,8 +20,6 @@
 #if defined(CONF_PLATFORM_ANDROID)
 #include <android/android_main.h>
 #endif
-
-using namespace FontIcons;
 
 void CMenusStart::RenderStartMenu(CUIRect MainView)
 {
@@ -69,17 +68,27 @@ void CMenusStart::RenderStartMenu(CUIRect MainView)
 	Menu.HSplitBottom(40.0f, &Menu, &Button);
 	static CButtonContainer s_LocalServerButton;
 
+	const char *pLocalServerImage = g_Config.m_ClShowStartMenuImages ? "local_server" : nullptr;
 	const bool LocalServerRunning = GameClient()->m_LocalServer.IsServerRunning();
-	if(GameClient()->m_Menus.DoButton_Menu(&s_LocalServerButton, LocalServerRunning ? Localize("Stop server") : Localize("Run server"), 0, &Button, BUTTONFLAG_LEFT, g_Config.m_ClShowStartMenuImages ? "local_server" : nullptr, IGraphics::CORNER_ALL, Rounding, 0.5f, LocalServerRunning ? ColorRGBA(0.0f, 1.0f, 0.0f, 0.25f) : ColorRGBA(0.0f, 0.0f, 0.0f, 0.25f)) || (CheckHotKey(KEY_R) && Input()->KeyPress(KEY_R)))
+	if(LocalServerRunning)
 	{
-		if(LocalServerRunning)
+		// Split in the middle of the label area, the image is rendered on the right
+		CUIRect JoinButton, StopButton;
+		const float ImageWidth = pLocalServerImage == nullptr ? 0.0f : Button.h * CMenus::BUTTON_IMAGE_WIDTH_FACTOR;
+		Button.VSplitLeft((Button.w - ImageWidth) / 2.0f, &JoinButton, &StopButton);
+		if(GameClient()->m_Menus.DoButton_Menu(&s_LocalServerButton, Localize("Join"), 0, &JoinButton, BUTTONFLAG_LEFT, nullptr, IGraphics::CORNER_L, Rounding, 0.5f, ColorRGBA(0.0f, 1.0f, 0.0f, 0.25f)) || CheckHotKey(KEY_J))
+		{
+			GameClient()->m_LocalServer.Connect();
+		}
+		static CButtonContainer s_StopServerButton;
+		if(GameClient()->m_Menus.DoButton_Menu(&s_StopServerButton, Localize("Stop server"), 0, &StopButton, BUTTONFLAG_LEFT, pLocalServerImage, IGraphics::CORNER_R, Rounding, 0.5f, ColorRGBA(1.0f, 0.0f, 0.0f, 0.25f), &s_LocalServerButton) || CheckHotKey(KEY_R))
 		{
 			GameClient()->m_LocalServer.KillServer();
 		}
-		else
-		{
-			GameClient()->m_LocalServer.RunServer({});
-		}
+	}
+	else if(GameClient()->m_Menus.DoButton_Menu(&s_LocalServerButton, Localize("Run server"), 0, &Button, BUTTONFLAG_LEFT, pLocalServerImage, IGraphics::CORNER_ALL, Rounding, 0.5f, ColorRGBA(0.0f, 0.0f, 0.0f, 0.25f)) || CheckHotKey(KEY_R))
+	{
+		GameClient()->m_LocalServer.RunServer({});
 	}
 
 	Menu.HSplitBottom(5.0f, &Menu, nullptr); // little space
@@ -119,7 +128,7 @@ void CMenusStart::RenderStartMenu(CUIRect MainView)
 	static CButtonContainer s_ConsoleButton;
 	TextRender()->SetFontPreset(EFontPreset::ICON_FONT);
 	TextRender()->SetRenderFlags(ETextRenderFlags::TEXT_RENDER_FLAG_ONLY_ADVANCE_WIDTH | ETextRenderFlags::TEXT_RENDER_FLAG_NO_X_BEARING | ETextRenderFlags::TEXT_RENDER_FLAG_NO_Y_BEARING | ETextRenderFlags::TEXT_RENDER_FLAG_NO_PIXEL_ALIGNMENT | ETextRenderFlags::TEXT_RENDER_FLAG_NO_OVERSIZE);
-	if(GameClient()->m_Menus.DoButton_Menu(&s_ConsoleButton, FONT_ICON_TERMINAL, 0, &ConsoleButton, BUTTONFLAG_LEFT, nullptr, IGraphics::CORNER_ALL, 5.0f, 0.0f, ColorRGBA(0.0f, 0.0f, 0.0f, 0.1f)))
+	if(GameClient()->m_Menus.DoButton_Menu(&s_ConsoleButton, FontIcon::TERMINAL, 0, &ConsoleButton, BUTTONFLAG_LEFT, nullptr, IGraphics::CORNER_ALL, 5.0f, 0.0f, ColorRGBA(0.0f, 0.0f, 0.0f, 0.1f)))
 	{
 		GameClient()->m_GameConsole.Toggle(CGameConsole::CONSOLETYPE_LOCAL);
 	}
@@ -194,7 +203,7 @@ void CMenusStart::RenderStartMenu(CUIRect MainView)
 		VersionUpdate.VSplitRight(10.0f, &VersionUpdate, nullptr);
 
 		static CButtonContainer s_DownloadButton;
-		if(GameClient()->m_Menus.DoButton_Menu(&s_DownloadButton, Localize("Download"), 0, &DownloadButton, BUTTONFLAG_LEFT, 0, IGraphics::CORNER_ALL, 5.0f, 0.0f, ColorRGBA(0.0f, 0.0f, 0.0f, 0.25f)))
+		if(GameClient()->m_Menus.DoButton_Menu(&s_DownloadButton, Localize("Download"), 0, &DownloadButton, BUTTONFLAG_LEFT, nullptr, IGraphics::CORNER_ALL, 5.0f, 0.0f, ColorRGBA(0.0f, 0.0f, 0.0f, 0.25f)))
 		{
 			Client()->ViewLink("https://ddnet.org/downloads/");
 		}

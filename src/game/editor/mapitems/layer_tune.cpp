@@ -37,8 +37,8 @@ void CLayerTune::Resize(int NewW, int NewH)
 	mem_zero(pNewTuneData, (size_t)NewW * NewH * sizeof(CTuneTile));
 
 	// copy old data
-	for(int y = 0; y < minimum(NewH, m_Height); y++)
-		mem_copy(&pNewTuneData[y * NewW], &m_pTuneTile[y * m_Width], minimum(m_Width, NewW) * sizeof(CTuneTile));
+	for(int y = 0; y < std::min(NewH, m_Height); y++)
+		mem_copy(&pNewTuneData[y * NewW], &m_pTuneTile[y * m_Width], std::min(m_Width, NewW) * sizeof(CTuneTile));
 
 	// replace old
 	delete[] m_pTuneTile;
@@ -128,6 +128,13 @@ void CLayerTune::BrushDraw(CLayer *pBrush, vec2 WorldPos)
 						m_pTuneTile[TgtIndex].m_Number = 0;
 						m_pTuneTile[TgtIndex].m_Type = 0;
 						m_pTiles[TgtIndex].m_Index = 0;
+
+						STuneTileStateChange::SData Current{
+							m_pTuneTile[TgtIndex].m_Number,
+							m_pTuneTile[TgtIndex].m_Type,
+							m_pTiles[TgtIndex].m_Index};
+
+						RecordStateChange(fx, fy, Previous, Current);
 						continue;
 					}
 					else
@@ -159,10 +166,15 @@ void CLayerTune::BrushDraw(CLayer *pBrush, vec2 WorldPos)
 
 void CLayerTune::RecordStateChange(int x, int y, STuneTileStateChange::SData Previous, STuneTileStateChange::SData Current)
 {
-	if(!m_History[y][x].m_Changed)
-		m_History[y][x] = STuneTileStateChange{true, Previous, Current};
+	STuneTileStateChange &Change = m_History[y][x];
+	if(Change.m_Changed)
+	{
+		Change.m_Current = Current;
+	}
 	else
-		m_History[y][x].m_Current = Current;
+	{
+		Change = STuneTileStateChange{true, Previous, Current};
+	}
 }
 
 void CLayerTune::BrushFlipX()
